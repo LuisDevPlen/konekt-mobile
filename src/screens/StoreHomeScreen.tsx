@@ -25,6 +25,7 @@ import { useCart, formatCurrency } from '../contexts/CartContext';
 import { storeApi } from '../services/storeApi';
 import { ifood, storeAccent } from '../theme/ifood';
 import { resolveImageUrl } from '../utils/imageUrl';
+import { getTenantCoverUri } from '../utils/coverImage';
 import { goToLogin } from '../navigation/routes';
 import { formatCurrency as fmt } from '../utils/errors';
 import { getTabBarHeight } from '../utils/safeArea';
@@ -163,6 +164,7 @@ export function StoreHomeScreen({ navigation }: Props) {
   const accent = storeAccent(store.slug);
   const rating = tenant ? formatStoreRating(tenant) : null;
   const delivery = tenant ? formatStoreDelivery(tenant) : '';
+  const coverUri = getTenantCoverUri(tenant);
   const highlights = filteredSections[0]?.products.slice(0, 6) ?? [];
 
   return (
@@ -256,11 +258,8 @@ export function StoreHomeScreen({ navigation }: Props) {
       >
         <View style={styles.hero}>
           <View style={[styles.heroBg, { backgroundColor: accent }]}>
-            {highlights[0]?.image_url ? (
-              <Image
-                source={{ uri: resolveImageUrl(highlights[0].image_url) ?? undefined }}
-                style={styles.heroImage}
-              />
+            {coverUri ? (
+              <Image source={{ uri: coverUri }} style={styles.heroImage} resizeMode="cover" />
             ) : null}
             <View style={styles.heroOverlay} />
           </View>
@@ -388,7 +387,7 @@ export function StoreHomeScreen({ navigation }: Props) {
       ) : !isAuthenticated ? (
         <TouchableOpacity
           style={[styles.authBar, { marginBottom: getTabBarHeight(insets) }]}
-          onPress={() => goToLogin(navigation)}
+          onPress={() => goToLogin(navigation, { coverUrl: coverUri })}
         >
           <Text style={styles.authBarText}>Entre para montar seu pedido</Text>
         </TouchableOpacity>

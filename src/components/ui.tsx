@@ -129,25 +129,30 @@ export function Button({
   variant = 'primary',
   disabled,
   compact,
+  style,
 }: {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline';
+  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'outlinePrimary';
   disabled?: boolean;
   compact?: boolean;
+  style?: object;
 }) {
   const textStyle =
-    variant === 'secondary' || variant === 'outline'
-      ? styles.buttonTextDark
-      : styles.buttonText;
+    variant === 'outlinePrimary'
+      ? styles.buttonTextPrimary
+      : variant === 'secondary' || variant === 'outline'
+        ? styles.buttonTextDark
+        : styles.buttonText;
 
   return (
     <TouchableOpacity
       style={[
         styles.button,
-        styles[variant],
+        styles[variant === 'outlinePrimary' ? 'outlinePrimary' : variant],
         compact && styles.buttonCompact,
         disabled && styles.disabled,
+        style,
       ]}
       onPress={onPress}
       disabled={disabled}
@@ -264,10 +269,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  outlinePrimary: {
+    backgroundColor: colors.white,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
   danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.5 },
   buttonText: { color: colors.white, fontWeight: '700', fontSize: 15 },
   buttonTextDark: { color: colors.text, fontWeight: '600', fontSize: 15 },
+  buttonTextPrimary: { color: colors.primary, fontWeight: '700', fontSize: 15 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
   errorBox: {
     backgroundColor: '#FFF0F0',

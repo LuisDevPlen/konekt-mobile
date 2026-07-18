@@ -35,12 +35,34 @@ function isLikelyAndroidEmulator(): boolean {
     model.includes('sdk') ||
     model.includes('emulator') ||
     model.includes('gphone') ||
-    brand === 'google' && model.includes('android')
+    (brand === 'google' && model.includes('android'))
   );
 }
 
 function toApiUrl(host: string): string {
   return `http://${host}:${API_PORT}${API_PATH}`;
+}
+
+function isLocalhostUrl(url: string): boolean {
+  return /:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(url);
+}
+
+function assertProductionApiUrl(url: string | undefined): string {
+  const trimmed = url?.trim();
+  if (!trimmed) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL é obrigatória em builds de produção. Defina uma URL HTTPS da API.'
+    );
+  }
+  if (isLocalhostUrl(trimmed)) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL não pode apontar para localhost em produção. Use a URL HTTPS oficial da API.'
+    );
+  }
+  if (!/^https:\/\//i.test(trimmed)) {
+    throw new Error('EXPO_PUBLIC_API_URL em produção deve usar HTTPS.');
+  }
+  return trimmed.replace(/\/$/, '');
 }
 
 export function resolveApiUrlCandidates(): string[] {
@@ -54,7 +76,7 @@ export function resolveApiUrlCandidates(): string[] {
   };
 
   if (!__DEV__) {
-    push(envUrl || toApiUrl('127.0.0.1'));
+    push(assertProductionApiUrl(envUrl));
     return candidates;
   }
 
@@ -135,5 +157,16 @@ export const config = {
   },
   get assetsBaseUrl() {
     return getApiUrl().replace(/\/api\/?$/, '');
+  },
+  google: {
+    get webClientId() {
+      return process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() || '';
+    },
+    get androidClientId() {
+      return process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?.trim() || '';
+    },
+    get iosClientId() {
+      return process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() || '';
+    },
   },
 };

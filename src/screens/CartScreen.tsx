@@ -21,6 +21,7 @@ import { useCart, formatCurrency } from '../contexts/CartContext';
 import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveImageUrl } from '../utils/imageUrl';
+import { getTenantCoverUri } from '../utils/coverImage';
 import { formatAdditionSummary } from '../utils/cart';
 import { ifood } from '../theme/ifood';
 
@@ -31,6 +32,7 @@ type Props = CompositeScreenProps<
 
 export function CartScreen({ navigation }: Props) {
   const { store } = useStore();
+  const coverUrl = getTenantCoverUri(store);
   const { isAuthenticated } = useAuth();
   const { items, total, updateQuantity, removeItem, getItemTotal, clearCart, itemCount } = useCart();
   const insets = useSafeAreaInsets();
@@ -48,8 +50,8 @@ export function CartScreen({ navigation }: Props) {
           <Text style={styles.emptySub}>Crie uma conta ou faça login para adicionar itens e pedir</Text>
         </View>
         <View style={styles.emptyActions}>
-          <Button label="Entrar" onPress={() => goToLogin(navigation)} />
-          <Button label="Criar conta" variant="secondary" onPress={() => goToRegister(navigation)} />
+          <Button label="Entrar" onPress={() => goToLogin(navigation, { coverUrl })} />
+          <Button label="Criar conta" variant="secondary" onPress={() => goToRegister(navigation, { coverUrl })} />
         </View>
       </View>
     );

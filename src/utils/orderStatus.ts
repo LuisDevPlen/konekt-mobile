@@ -82,6 +82,7 @@ export function getPaymentMethodLabel(
       : 'Pagamento na entrega';
     return methodLabel ? `${timing} · ${methodLabel}` : timing;
   }
+  if (methodLabel) return `Mercado Pago · ${methodLabel}`;
   return methodLabel || '—';
 }
 

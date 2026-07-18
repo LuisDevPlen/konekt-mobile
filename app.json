@@ -1,20 +1,27 @@
 {
   "expo": {
-    "name": "Konekt",
+    "name": "Dino Eats",
     "slug": "konekt-mobile",
+    "scheme": "dinoeats",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/platform-logo.png",
     "splash": {
+      "image": "./assets/platform-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#EA1D2C"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dinoeats.app"
     },
     "android": {
+      "package": "com.dinoeats.app",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#0f1419"
+        "foregroundImage": "./assets/platform-logo-adaptive.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "web": {
@@ -22,7 +29,19 @@
     },
     "plugins": [
       "expo-asset",
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.630358177762-ermgfja5ki9699fa56s64dftl87maoqn"
+        }
+      ]
+    ],
+    "extra": {
+      "googleWebClientId": "630358177762-21rdhck17psdgtk9vd4rafomo1vc9134.apps.googleusercontent.com",
+      "googleAndroidClientId": "630358177762-0s7vn3h57l2feel8i3p3vabem1m4b49k.apps.googleusercontent.com",
+      "googleIosClientId": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com"
+    }
   }
 }

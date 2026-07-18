@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.dinoeats.com.br/api"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.dinoeats.com.br/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "630358177762-21rdhck17psdgtk9vd4rafomo1vc9134.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "630358177762-0s7vn3h57l2feel8i3p3vabem1m4b49k.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.dinoeats.com.br/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "630358177762-21rdhck17psdgtk9vd4rafomo1vc9134.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "630358177762-0s7vn3h57l2feel8i3p3vabem1m4b49k.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

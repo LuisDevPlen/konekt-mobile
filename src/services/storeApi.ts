@@ -4,6 +4,7 @@ import {
   ApiResponse,
   Category,
   Customer,
+  CustomerSavedAddress,
   Order,
   OrderReview,
   Product,
@@ -14,6 +15,9 @@ import {
   SelectedAddition,
   StoreCartCoupon,
   DeliveryQuote,
+  SupportCategory,
+  SupportTicket,
+  SupportMessage,
 } from '../types';
 
 
@@ -63,12 +67,23 @@ export const storeApi = {
     password: string;
     name: string;
     phone?: string;
-    termsAccepted: true;
+    termsAccepted?: true;
   }) =>
+    http.post<
+      ApiResponse<
+        | { requiresVerification: true; email: string; message: string; resendAvailableIn: number }
+        | { accessToken: string; refreshToken: string; customer: Customer }
+      >
+    >('/store/auth/register', body).then((r) => r.data.data),
+
+  verifyEmail: (body: { email: string; code: string }) =>
     http.post<ApiResponse<{ accessToken: string; refreshToken: string; customer: Customer }>>(
-      '/store/auth/register',
+      '/store/auth/verify-email',
       body
     ).then((r) => r.data.data),
+
+  resendVerification: (body: { email: string }) =>
+    http.post<ApiResponse<{ message: string; devCode?: string }>>('/store/auth/resend-verification', body).then((r) => r.data.data),
 
   acceptTerms: () =>
     http.post<ApiResponse<Customer>>('/store/auth/terms/accept', { accepted: true }).then((r) => r.data.data),
@@ -83,20 +98,26 @@ export const storeApi = {
 
     ).then((r) => r.data.data),
 
-
-
-  refresh: (refreshToken: string) =>
-
-    http.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-
-      '/store/auth/refresh', { refreshToken }
-
+  oauthLogin: (body: { provider: 'google'; idToken: string }) =>
+    http.post<ApiResponse<{ accessToken: string; refreshToken: string; customer: Customer }>>(
+      '/store/auth/oauth',
+      body
     ).then((r) => r.data.data),
 
 
 
-  me: () =>
+  refresh: (refreshToken: string) =>
+    http.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
+      '/store/auth/refresh', { refreshToken }
+    ).then((r) => r.data.data),
 
+  logout: (refreshToken?: string | null) =>
+    http.post<ApiResponse<{ message?: string }>>(
+      '/store/auth/logout',
+      refreshToken ? { refreshToken } : {}
+    ).then((r) => r.data),
+
+  me: () =>
     http.get<ApiResponse<Customer>>('/store/auth/me').then((r) => r.data.data),
 
 
@@ -172,8 +193,23 @@ export const storeApi = {
   getAvailableCoupons: (slug: string) =>
     http.get<ApiResponse<AvailableCouponsResponse>>(`/store/${slug}/cart/coupons`).then((r) => r.data.data),
 
-  getDeliveryQuote: (slug: string, shippingAddress: string) =>
-    http.post<ApiResponse<DeliveryQuote>>(`/store/${slug}/delivery/quote`, { shippingAddress }).then((r) => r.data.data),
+  getDeliveryQuote: (
+    slug: string,
+    input: { shippingAddress?: string; customerAddressId?: string }
+  ) =>
+    http.post<ApiResponse<DeliveryQuote>>(`/store/${slug}/delivery/quote`, input).then((r) => r.data.data),
+
+  listSavedAddresses: () =>
+    http.get<ApiResponse<CustomerSavedAddress[]>>('/store/auth/addresses').then((r) => r.data.data),
+
+  addSavedAddress: (body: { address: string; label?: string }) =>
+    http.post<ApiResponse<CustomerSavedAddress>>('/store/auth/addresses', body).then((r) => r.data.data),
+
+  selectSavedAddress: (addressId: string) =>
+    http.put<ApiResponse<CustomerSavedAddress>>(`/store/auth/addresses/${addressId}/select`, {}).then((r) => r.data.data),
+
+  deleteSavedAddress: (addressId: string) =>
+    http.delete<ApiResponse<{ id: string; deleted: boolean }>>(`/store/auth/addresses/${addressId}`).then((r) => r.data.data),
 
   createOrder: (slug: string, body: {
     items: { productId: string; quantity: number; productVersion: number; additions?: SelectedAddition[] }[];
@@ -192,19 +228,40 @@ export const storeApi = {
 
 
   getOrder: (slug: string, orderId: string) =>
-
     http.get<ApiResponse<Order>>(`/store/${slug}/orders/${orderId}`).then((r) => r.data.data),
 
-
+  cancelOrder: (
+    slug: string,
+    orderId: string,
+    body: { version: number; cancelReason: string; cancelNotes?: string }
+  ) =>
+    http
+      .post<ApiResponse<Order>>(`/store/${slug}/orders/${orderId}/cancel`, body)
+      .then((r) => r.data.data),
 
   payOrder: (slug: string, orderId: string, body: { paymentMethod: string; orderVersion: number }) =>
-
     http.post<ApiResponse<unknown>>(`/store/${slug}/orders/${orderId}/payment`, body).then((r) => r.data.data),
 
   createMercadoPagoCheckout: (slug: string, orderId: string) =>
     http.post<ApiResponse<{ paymentId: string; preferenceId: string; checkoutUrl: string }>>(
       `/store/${slug}/orders/${orderId}/payments/mercado-pago/checkout`,
       {}
+    ).then((r) => r.data.data),
+
+  syncMercadoPagoPayment: (
+    slug: string,
+    orderId: string,
+    body?: { paymentId?: string }
+  ) =>
+    http.post<ApiResponse<{
+      synced: boolean;
+      paid?: boolean;
+      alreadyPaid?: boolean;
+      status?: string;
+      order?: Order;
+    }>>(
+      `/store/${slug}/orders/${orderId}/payments/mercado-pago/sync`,
+      body ?? {}
     ).then((r) => r.data.data),
 
   listNotifications: () =>
@@ -227,6 +284,32 @@ export const storeApi = {
 
   submitOrderReview: (slug: string, orderId: string, body: { rating: number; comment?: string }) =>
     http.post<ApiResponse<OrderReview>>(`/store/${slug}/orders/${orderId}/review`, body).then((r) => r.data.data),
+
+  getSupportCategories: () =>
+    http.get<ApiResponse<SupportCategory[]>>('/store/auth/support/categories').then((r) => r.data.data),
+
+  listSupportTickets: () =>
+    http.get<ApiResponse<SupportTicket[]>>('/store/auth/support/tickets').then((r) => r.data.data),
+
+  getSupportTicket: (id: string) =>
+    http.get<ApiResponse<SupportTicket>>(`/store/auth/support/tickets/${id}`).then((r) => r.data.data),
+
+  createSupportTicket: (body: {
+    category: string;
+    title: string;
+    description: string;
+    priority?: string;
+    tenantId?: string | null;
+    orderId?: string | null;
+    attachments?: { fileUrl: string; fileType?: string; fileName?: string }[];
+  }) =>
+    http.post<ApiResponse<SupportTicket>>('/store/auth/support/tickets', body).then((r) => r.data.data),
+
+  sendSupportMessage: (id: string, body: { message: string; attachments?: { fileUrl: string; fileType?: string; fileName?: string }[] }) =>
+    http.post<ApiResponse<SupportMessage>>(`/store/auth/support/tickets/${id}/messages`, body).then((r) => r.data.data),
+
+  rateSupportTicket: (id: string, body: { rating: number; comment?: string }) =>
+    http.post<ApiResponse<unknown>>(`/store/auth/support/tickets/${id}/rate`, body).then((r) => r.data.data),
 
 };
 

@@ -1,15 +1,22 @@
 import React from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { BrandingProvider } from './src/contexts/BrandingContext';
 import { StoreProvider } from './src/contexts/StoreContext';
 import { CartProvider } from './src/contexts/CartContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/ref';
 import { TermsGate } from './src/components/TermsGate';
+import { SplashOverlay } from './src/components/SplashOverlay';
 import { colors } from './src/theme/ifood';
+
+WebBrowser.maybeCompleteAuthSession();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const navTheme = {
   ...DefaultTheme,
@@ -24,21 +31,32 @@ const navTheme = {
 };
 
 export default function App() {
+  const [splashVisible, setSplashVisible] = React.useState(true);
+
+  React.useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AuthProvider>
-        <StoreProvider>
-          <CartProvider>
-            <NotificationProvider>
-              <NavigationContainer ref={navigationRef} theme={navTheme}>
-                <StatusBar style="dark" />
-                <RootNavigator />
-                <TermsGate />
-              </NavigationContainer>
-            </NotificationProvider>
-          </CartProvider>
-        </StoreProvider>
-      </AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <CartProvider>
+              <NotificationProvider>
+                <NavigationContainer ref={navigationRef} theme={navTheme}>
+                  <StatusBar style="dark" />
+                  <RootNavigator />
+                  <TermsGate />
+                </NavigationContainer>
+                {splashVisible ? (
+                  <SplashOverlay onFinish={() => setSplashVisible(false)} />
+                ) : null}
+              </NotificationProvider>
+            </CartProvider>
+          </StoreProvider>
+        </AuthProvider>
+      </BrandingProvider>
     </SafeAreaProvider>
   );
 }

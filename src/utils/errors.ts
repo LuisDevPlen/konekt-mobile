@@ -40,9 +40,13 @@ export function getFriendlyErrorMessage(error: unknown): string {
       case 'CONFLICT':
         return error.message || 'Os dados foram alterados. Atualize e tente novamente.';
       case 'DATABASE_UNAVAILABLE':
-        return 'Serviço temporariamente indisponível. Inicie o backend: cd konekt-back && npm run dev';
+        return 'Serviço temporariamente indisponível. Tente novamente em instantes.';
+      case 'INTERNAL_ERROR':
+        return error.message && error.message !== 'Erro interno do servidor'
+          ? error.message
+          : 'Falha no servidor ao processar o pagamento. Verifique se o Mercado Pago da loja está conectado e tente novamente.';
       case 'NETWORK_ERROR':
-        return 'Sem conexão com o servidor. No celular USB use npm run phone:usb e deixe a API rodando no PC.';
+        return 'Sem conexão com o servidor. Verifique sua internet ou tente novamente.';
       default:
         return error.message || 'Ocorreu um erro. Tente novamente.';
     }
@@ -51,7 +55,7 @@ export function getFriendlyErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
     const msg = String((error as Error).message);
     if (msg.includes('Network Error') || msg.includes('timeout')) {
-      return 'Sem conexão com o servidor. Verifique sua internet.';
+      return 'Sem conexão com o servidor. Verifique sua internet ou tente novamente.';
     }
   }
 

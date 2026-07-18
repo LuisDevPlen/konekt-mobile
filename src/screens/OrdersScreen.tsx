@@ -14,7 +14,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList, Order, OrdersStackParamList } from '../types';
-import { Button, Loading } from '../components/ui';
+import { Loading } from '../components/ui';
+import { GuestAccessPanel } from '../components/GuestAccessPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { storeApi } from '../services/storeApi';
 import { formatCurrency } from '../utils/errors';
@@ -53,19 +54,11 @@ export function OrdersScreen({ navigation }: Props) {
 
   if (!isAuthenticated) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Pedidos</Text>
-          <TouchableOpacity style={styles.homeBtn} onPress={() => goToHome(navigation)} activeOpacity={0.8}>
-            <Ionicons name="home-outline" size={18} color={ifood.colors.primary} />
-            <Text style={styles.homeBtnText}>Início</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.subtitle}>Entre para acompanhar seus pedidos em todas as lojas</Text>
-        <Button label="Entrar" onPress={() => goToLogin(navigation)} />
-        <Button label="Criar conta" variant="secondary" onPress={() => goToRegister(navigation)} />
-      </View>
+      <GuestAccessPanel
+        variant="orders"
+        onPrimaryPress={() => goToLogin(navigation)}
+        onSecondaryPress={() => goToRegister(navigation)}
+      />
     );
   }
 
@@ -154,7 +147,6 @@ const styles = StyleSheet.create({
     backgroundColor: ifood.colors.white,
   },
   homeBtnText: { fontSize: 13, fontWeight: '700', color: ifood.colors.primary },
-  subtitle: { fontSize: 14, color: ifood.colors.textSecondary, marginVertical: 12, lineHeight: 20 },
   list: { paddingBottom: 24 },
   empty: { alignItems: 'center', paddingVertical: 64 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: ifood.colors.text, marginTop: 12 },

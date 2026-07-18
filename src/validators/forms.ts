@@ -1,5 +1,25 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[\d\s()+-]{8,20}$/;
+
+/** Only digits from a phone string. */
+export function digitsOnly(value: string): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+/**
+ * Brazilian phone mask:
+ * (11) 98888-8888  (11 digits mobile)
+ * (11) 3333-4444   (10 digits landline)
+ */
+export function formatPhoneMask(value: string): string {
+  const digits = digitsOnly(value).slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
 
 export function validateEmail(email: string): string | null {
   if (!email.trim()) return 'E-mail é obrigatório';
@@ -14,8 +34,11 @@ export function validatePassword(password: string): string | null {
 }
 
 export function validatePhone(phone: string): string | null {
-  if (!phone.trim()) return 'Telefone é obrigatório';
-  if (!PHONE_RE.test(phone)) return 'Telefone inválido';
+  const digits = digitsOnly(phone);
+  if (!digits) return 'Telefone é obrigatório';
+  if (digits.length < 10 || digits.length > 11) {
+    return 'Telefone inválido. Use DDD + número.';
+  }
   return null;
 }
 

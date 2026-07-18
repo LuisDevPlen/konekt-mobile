@@ -38,13 +38,18 @@ export function ensureApiConnection(): Promise<string> {
 
 export const http = axios.create({
   timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    // Backend devolve refreshToken no JSON só para cliente nativo.
+    'X-Konekt-Client': 'mobile',
+  },
 });
 
 function isSessionAuthUrl(url?: string): boolean {
   return !!url && (
     url.includes('/auth/login') ||
     url.includes('/auth/register') ||
+    url.includes('/auth/oauth') ||
     url.includes('/auth/refresh')
   );
 }

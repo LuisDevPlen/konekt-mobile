@@ -35,6 +35,24 @@ describe('resolveApiUrl', () => {
     });
   });
 
+  test('fails production build when API URL is localhost', () => {
+    (global as { __DEV__?: boolean }).__DEV__ = false;
+    process.env.EXPO_PUBLIC_API_URL = 'http://127.0.0.1:3000/api';
+    jest.isolateModules(() => {
+      const { resolveApiUrlCandidates } = require('../src/utils/config');
+      expect(() => resolveApiUrlCandidates()).toThrow(/localhost/i);
+    });
+  });
+
+  test('fails production build when API URL is missing', () => {
+    (global as { __DEV__?: boolean }).__DEV__ = false;
+    delete process.env.EXPO_PUBLIC_API_URL;
+    jest.isolateModules(() => {
+      const { resolveApiUrlCandidates } = require('../src/utils/config');
+      expect(() => resolveApiUrlCandidates()).toThrow(/obrigatória/i);
+    });
+  });
+
   test('derives API host from Expo Go debugger host in dev', () => {
     (global as { __DEV__?: boolean }).__DEV__ = true;
     process.env.EXPO_PUBLIC_API_URL = 'http://127.0.0.1:3000/api';

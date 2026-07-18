@@ -4,8 +4,17 @@ export interface Tenant {
   slug: string;
   description?: string | null;
   logo_url?: string | null;
+  cover_url?: string | null;
+  cover_position?: string | null;
+  cover_scale?: number | null;
+  theme_color?: string | null;
   address?: string | null;
   payment_methods?: string[];
+  payment_methods_by_fulfillment?: {
+    delivery: string[];
+    pickup: string[];
+  } | null;
+  payment_method_labels?: Record<string, string> | null;
   mercado_pago_configured?: boolean;
   delivery_enabled?: boolean;
   delivery_fee_tiers?: { upToKm: number; fee: number }[];
@@ -16,14 +25,68 @@ export interface Tenant {
   free_delivery?: boolean;
 }
 
+export interface CustomerSavedAddress {
+  id: string;
+  label?: string | null;
+  formattedAddress: string;
+  isSelected: boolean;
+  createdAt?: string;
+}
+
 export interface Customer {
   id: string;
   email: string;
   name: string;
   phone?: string | null;
   address?: string | null;
+  savedAddresses?: CustomerSavedAddress[];
+  selectedAddressId?: string | null;
   termsAccepted?: boolean;
   termsVersion?: string | null;
+  emailVerified?: boolean;
+}
+
+export interface SupportCategory {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface SupportAttachment {
+  id?: string;
+  fileUrl: string;
+  fileType?: string | null;
+  fileName?: string | null;
+}
+
+export interface SupportMessage {
+  id: string;
+  ticketId: string;
+  senderType: 'customer' | 'store' | 'support';
+  senderName: string;
+  message: string;
+  attachments?: SupportAttachment[];
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  protocol: string;
+  tenantId?: string | null;
+  tenantName?: string | null;
+  category: string;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  userType: 'customer' | 'store';
+  orderId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages?: SupportMessage[];
+  attachments?: SupportAttachment[];
+  statusHistory?: { oldStatus?: string | null; newStatus: string; changedByName?: string | null; createdAt: string }[];
+  rating?: { rating: number; comment?: string | null; createdAt: string } | null;
 }
 
 export interface Category {
@@ -78,6 +141,9 @@ export interface Product {
   category_name?: string | null;
   additions?: ProductAddition[];
   addition_categories?: AdditionCategoryGroup[];
+  uncategorized_additions_min_selections?: number;
+  uncategorized_additions_max_selections?: number;
+  uncategorized_additions_required?: boolean;
 }
 
 export interface CartItem {
@@ -98,6 +164,9 @@ export interface DeliveryQuote {
   withinRange: boolean;
   maxDistanceKm: number;
   autoCalculated: boolean;
+  routingProvider?: 'google';
+  cached?: boolean;
+  customerAddressId?: string | null;
 }
 
 export interface OrderItem {
@@ -124,6 +193,9 @@ export interface Order {
   payment_method?: PaymentMethod;
   cash_change_for?: number | null;
   version: number;
+  cancel_reason?: string | null;
+  cancel_notes?: string | null;
+  cancel_requested_at?: string | null;
   items?: OrderItem[];
   created_at: string;
   updated_at?: string;
@@ -208,9 +280,18 @@ export type OrdersStackParamList = {
 export type ProfileStackParamList = {
   ProfileHome: undefined;
   Notifications: undefined;
-  Login: undefined;
-  Register: undefined;
+  Login: { coverUrl?: string | null } | undefined;
+  EmailLogin: undefined;
+  Register: { coverUrl?: string | null } | undefined;
+  VerifyEmail: { email: string; devCode?: string };
   Addresses: { returnToCheckout?: boolean } | undefined;
+};
+
+export type SupportStackParamList = {
+  SupportHome: undefined;
+  SupportTickets: undefined;
+  SupportCreate: undefined;
+  SupportDetail: { ticketId: string };
 };
 
 export type HomeStackParamList = {
@@ -229,6 +310,7 @@ export type MainTabParamList = {
   Home: NavigatorScreenParams<HomeStackParamList> | undefined;
   Search: NavigatorScreenParams<SearchStackParamList> | undefined;
   Orders: NavigatorScreenParams<OrdersStackParamList> | undefined;
+  Support: NavigatorScreenParams<SupportStackParamList> | undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
 };
 

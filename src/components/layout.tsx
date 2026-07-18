@@ -37,7 +37,7 @@ export function SacolaHeader({
   onRight,
 }: {
   title: string;
-  onBack: () => void;
+  onBack?: () => void;
   rightLabel?: string;
   onRight?: () => void;
 }) {
@@ -45,9 +45,13 @@ export function SacolaHeader({
 
   return (
     <View style={[styles.sacolaHeader, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity onPress={onBack} style={styles.sacolaBack} hitSlop={12}>
-        <Ionicons name="chevron-back" size={24} color={ifood.colors.primary} />
-      </TouchableOpacity>
+      {onBack ? (
+        <TouchableOpacity onPress={onBack} style={styles.sacolaBack} hitSlop={12}>
+          <Ionicons name="chevron-back" size={24} color={ifood.colors.primary} />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.sacolaSpacer} />
+      )}
       <Text style={styles.sacolaTitle}>{title}</Text>
       {rightLabel && onRight ? (
         <TouchableOpacity onPress={onRight} hitSlop={12}>

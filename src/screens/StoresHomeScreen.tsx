@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   FlatList,
+  Image,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -24,6 +25,7 @@ import { useStore } from '../contexts/StoreContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useBranding } from '../contexts/BrandingContext';
 import { getFriendlyErrorMessage, AppApiError } from '../utils/errors';
 import { getFabBottom } from '../utils/safeArea';
 import { ifood } from '../theme/ifood';
@@ -50,6 +52,7 @@ export function StoresHomeScreen({ navigation }: Props) {
   const { isAuthenticated, customer } = useAuth();
   const { itemCount } = useCart();
   const { unreadCount } = useNotifications();
+  const { platformName, logoUri } = useBranding();
   const insets = useSafeAreaInsets();
   const [stores, setStores] = React.useState<Tenant[]>([]);
   const [search, setSearch] = React.useState('');
@@ -185,11 +188,15 @@ export function StoresHomeScreen({ navigation }: Props) {
         ) : null}
 
         <View style={styles.connectBanner}>
-          <View style={styles.connectBadge}>
-            <Text style={styles.connectBadgeText}>Connect</Text>
-          </View>
+          {logoUri ? (
+            <Image source={{ uri: logoUri }} style={styles.connectLogo} resizeMode="contain" />
+          ) : (
+            <View style={styles.connectBadge}>
+              <Text style={styles.connectBadgeText}>{platformName.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
           <View style={styles.connectText}>
-            <Text style={styles.connectTitle}>Peça no Connect</Text>
+            <Text style={styles.connectTitle}>Peça no {platformName}</Text>
             <Text style={styles.connectSub}>
               Encontre restaurantes, lojas e mercados parceiros perto de você
             </Text>
@@ -303,12 +310,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   connectBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: ifood.colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  connectBadgeText: { color: ifood.colors.white, fontWeight: '800', fontSize: 12 },
+  connectBadgeText: { color: ifood.colors.white, fontWeight: '800', fontSize: 18 },
+  connectLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: ifood.colors.bgSecondary,
+  },
   connectText: { flex: 1 },
   connectTitle: { fontSize: 15, fontWeight: '700', color: ifood.colors.text },
   connectSub: { fontSize: 13, color: ifood.colors.textSecondary, marginTop: 2, lineHeight: 18 },

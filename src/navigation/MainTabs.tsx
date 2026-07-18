@@ -9,6 +9,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { HomeStack } from './HomeStack';
 import { SearchStack } from './SearchStack';
 import { OrdersStack } from './OrdersStack';
+import { SupportStack } from './SupportStack';
 import { ProfileStack } from './ProfileStack';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -31,6 +32,7 @@ export function MainTabs() {
             Home: focused ? 'home' : 'home-outline',
             Search: focused ? 'search' : 'search-outline',
             Orders: focused ? 'receipt' : 'receipt-outline',
+            Support: focused ? 'headset' : 'headset-outline',
             Profile: focused ? 'person' : 'person-outline',
           };
           return <Ionicons name={icons[route.name]} size={size} color={color} />;
@@ -40,6 +42,7 @@ export function MainTabs() {
       <Tab.Screen name="Home" component={HomeStack} options={{ tabBarLabel: 'Início' }} />
       <Tab.Screen name="Search" component={SearchStack} options={{ tabBarLabel: 'Busca' }} />
       <Tab.Screen name="Orders" component={OrdersStack} options={{ tabBarLabel: 'Pedidos' }} />
+      <Tab.Screen name="Support" component={SupportStack} options={{ tabBarLabel: 'Suporte' }} />
       <Tab.Screen
         name="Profile"
         component={ProfileStack}

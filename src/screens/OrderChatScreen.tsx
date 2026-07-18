@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -49,6 +50,7 @@ export function OrderChatScreen({ route, navigation }: Props) {
   const [sending, setSending] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [keyboardOpen, setKeyboardOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -71,7 +73,9 @@ export function OrderChatScreen({ route, navigation }: Props) {
       setActiveChatOrderId(orderId);
       void load();
       void refreshNotifications();
-      const interval = setInterval(() => { void load(); }, 8000);
+      const interval = setInterval(() => {
+        void load();
+      }, 8000);
       return () => {
         setActiveChatOrderId(null);
         clearInterval(interval);
@@ -80,12 +84,27 @@ export function OrderChatScreen({ route, navigation }: Props) {
   );
 
   React.useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardOpen(true)
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardOpen(false)
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
     if (messages.length === 0) return;
     const timer = setTimeout(() => {
       listRef.current?.scrollToEnd({ animated: true });
     }, 100);
     return () => clearTimeout(timer);
-  }, [messages.length]);
+  }, [messages.length, keyboardOpen]);
 
   const sendMessage = async () => {
     const body = draft.trim();
@@ -103,6 +122,8 @@ export function OrderChatScreen({ route, navigation }: Props) {
       setSending(false);
     }
   };
+
+  const composerPadBottom = keyboardOpen ? 8 : Math.max(insets.bottom, 10);
 
   return (
     <View style={styles.container}>
@@ -125,6 +146,7 @@ export function OrderChatScreen({ route, navigation }: Props) {
             ref={listRef}
             data={messages}
             keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={[
               styles.list,
               messages.length === 0 && styles.listEmpty,
@@ -159,7 +181,7 @@ export function OrderChatScreen({ route, navigation }: Props) {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {orderActive ? (
-          <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <View style={[styles.composer, { paddingBottom: composerPadBottom }]}>
             <TextInput
               style={styles.input}
               value={draft}
@@ -169,6 +191,9 @@ export function OrderChatScreen({ route, navigation }: Props) {
               editable={!sending}
               multiline
               maxLength={1000}
+              onFocus={() => {
+                setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 150);
+              }}
             />
             <TouchableOpacity
               style={[styles.sendBtn, (sending || !draft.trim()) && styles.sendBtnDisabled]}
@@ -180,7 +205,7 @@ export function OrderChatScreen({ route, navigation }: Props) {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={[styles.closedBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={[styles.closedBar, { paddingBottom: composerPadBottom }]}>
             <Text style={styles.closedText}>Conversa encerrada para este pedido.</Text>
           </View>
         )}

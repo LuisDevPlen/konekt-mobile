@@ -38,16 +38,42 @@ function dedupeAdditionsById(additions: ProductAddition[]): ProductAddition[] {
   return [...byId.values()];
 }
 
+function applyUncategorizedProductRules(
+  groups: AdditionCategoryGroup[],
+  product: Pick<
+    Product,
+    | 'uncategorized_additions_min_selections'
+    | 'uncategorized_additions_max_selections'
+    | 'uncategorized_additions_required'
+  >
+): AdditionCategoryGroup[] {
+  return groups.map((group) => {
+    if (group.id != null) return group;
+    const min = Number(product.uncategorized_additions_min_selections ?? group.min_selections ?? 0);
+    const max = Number(product.uncategorized_additions_max_selections ?? group.max_selections ?? 99);
+    const required = Boolean(product.uncategorized_additions_required) || min > 0;
+    return {
+      ...group,
+      name: group.name || 'Outros adicionais',
+      min_selections: min,
+      max_selections: max,
+      required,
+    };
+  });
+}
+
 export function normalizeProductAdditions(product: Product): Product {
   const additions = dedupeAdditionsById(parseAdditions(product.additions));
   let addition_categories = parseAdditionCategories(product.addition_categories)
     .map(normalizeAdditionGroup)
     .filter((group) => (group.additions?.length ?? 0) > 0);
 
-  if (addition_categories.length === 0 || addition_categories.every((g) => (g.additions?.length ?? 0) === 0)) {
+  // Paridade com o web: só reconstrói grupos quando a API não enviou categorias.
+  if (addition_categories.length === 0 && additions.length > 0) {
     addition_categories = buildAdditionCategoriesFromAdditions(additions);
   }
 
+  addition_categories = applyUncategorizedProductRules(addition_categories, product);
   addition_categories = sortAdditionGroupsByPriority(addition_categories);
 
   return { ...product, additions, addition_categories };
@@ -109,7 +135,7 @@ function buildAdditionCategoriesFromAdditions(additions: ProductAddition[]): Add
   if (uncategorized.length > 0) {
     result.push({
       id: null,
-      name: 'Outros',
+      name: 'Outros adicionais',
       min_selections: 0,
       max_selections: 99,
       required: false,

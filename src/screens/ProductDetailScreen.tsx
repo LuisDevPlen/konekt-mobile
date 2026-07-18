@@ -23,7 +23,7 @@ import { useCart } from '../contexts/CartContext';
 import { formatCurrency, getFriendlyErrorMessage } from '../utils/errors';
 import { AppApiError } from '../utils/errors';
 import { resolveImageUrl } from '../utils/imageUrl';
-import { isProductAvailable, stockLabel } from '../utils/productStock';
+import { isProductAvailable, maxProductQuantity, stockLabel } from '../utils/productStock';
 import { calcProductUnitTotal } from '../utils/cart';
 import {
   additionQty,
@@ -36,6 +36,7 @@ import {
   validateAdditionSelections,
 } from '../utils/additions';
 import { goToLogin } from '../navigation/routes';
+import { getTenantCoverUri } from '../utils/coverImage';
 import { colors, radius } from '../theme/ifood';
 
 type Props = CompositeScreenProps<
@@ -45,10 +46,12 @@ type Props = CompositeScreenProps<
 
 export function ProductDetailScreen({ navigation, route }: Props) {
   const { store } = useStore();
+  const coverUrl = getTenantCoverUri(store);
   const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
   const insets = useSafeAreaInsets();
   const [product, setProduct] = React.useState<Product | null>(null);
+  const [productQty, setProductQty] = React.useState(1);
   const [selectedAdditionQty, setSelectedAdditionQty] = React.useState<Map<string, number>>(new Map());
   const [loading, setLoading] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
@@ -59,6 +62,8 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     if (!store) return;
     setLoading(true);
     setAdditionError('');
+    setProductQty(1);
+    setSelectedAdditionQty(new Map());
     try {
       const p = normalizeProductAdditions(await storeApi.getProduct(store.slug, route.params.productId));
       setProduct(p);
@@ -95,18 +100,19 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     }
 
     if (!isAuthenticated) {
-      goToLogin(navigation);
+      goToLogin(navigation, { coverUrl });
       return;
     }
 
+    const qty = Math.min(Math.max(1, productQty), maxProductQuantity(product));
     setAdding(true);
     setAdditionError('');
-    const result = await addItem(product, 1, selectedAdditionsPayload(selectedAdditionQty));
+    const result = await addItem(product, qty, selectedAdditionsPayload(selectedAdditionQty));
     setAdding(false);
 
     if (!result.ok) {
       if (result.reason === 'auth_required') {
-        goToLogin(navigation);
+        goToLogin(navigation, { coverUrl });
         return;
       }
       if (result.reason === 'terms_required') {
@@ -144,6 +150,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 
   const groups = productAdditionGroups(product);
   const unitTotal = calcProductUnitTotal(product, selectedAdditionsPayload(selectedAdditionQty));
+  const maxQty = maxProductQuantity(product);
+  const safeQty = Math.min(Math.max(1, productQty), Math.max(1, maxQty));
+  const lineTotal = unitTotal * safeQty;
   const available = isProductAvailable(product);
   const additionValidationError = validateAdditionSelections(product, selectedAdditionQty);
   const canAddToCart = available && (!isAuthenticated || !additionValidationError);
@@ -261,6 +270,19 @@ export function ProductDetailScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {available ? (
+          <View style={styles.qtyCard}>
+            <Text style={styles.qtyLabel}>Quantidade</Text>
+            <QuantityStepper
+              value={safeQty}
+              min={1}
+              disableIncrease={safeQty >= maxQty}
+              onDecrease={() => setProductQty((q) => Math.max(1, q - 1))}
+              onIncrease={() => setProductQty((q) => Math.min(maxQty, q + 1))}
+            />
+          </View>
+        ) : null}
+
         {additionError ? (
           <View style={styles.errorWrap}>
             <ErrorBox message={additionError} />
@@ -275,8 +297,10 @@ export function ProductDetailScreen({ navigation, route }: Props) {
 
       <StickyFooter style={styles.footer}>
         <View style={styles.footerTotal}>
-          <Text style={styles.footerLabel}>Total do item</Text>
-          <Text style={styles.footerPrice}>{formatCurrency(unitTotal)}</Text>
+          <Text style={styles.footerLabel}>
+            {safeQty > 1 ? `Total (${safeQty}×)` : 'Total do item'}
+          </Text>
+          <Text style={styles.footerPrice}>{formatCurrency(lineTotal)}</Text>
         </View>
         {(footerValidationMessage) ? (
           <Text style={styles.footerHint}>{footerValidationMessage}</Text>
@@ -313,6 +337,18 @@ const styles = StyleSheet.create({
   price: { fontSize: 20, fontWeight: '800', color: colors.text, marginTop: 12 },
   stock: { fontSize: 13, color: colors.success, marginTop: 6 },
   stockOut: { color: colors.danger },
+  qtyCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bgSecondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  qtyLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
   additionsWrap: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
   groupCard: {
     backgroundColor: colors.bgSecondary,

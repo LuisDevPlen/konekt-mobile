@@ -34,12 +34,16 @@ export function goToPayment(
   navigation.navigate('Orders', { screen: 'Payment', params });
 }
 
-export function goToLogin(navigation: TabNavigation) {
-  navigation.navigate('Profile', { screen: 'Login' });
+export function goToLogin(navigation: TabNavigation, params?: { coverUrl?: string | null }) {
+  navigation.navigate('Profile', { screen: 'Login', params });
 }
 
-export function goToRegister(navigation: TabNavigation) {
-  navigation.navigate('Profile', { screen: 'Register' });
+export function goToRegister(navigation: TabNavigation, params?: { coverUrl?: string | null }) {
+  navigation.navigate('Profile', { screen: 'Register', params });
+}
+
+export function goToVerifyEmail(navigation: TabNavigation, email: string) {
+  navigation.navigate('Profile', { screen: 'VerifyEmail', params: { email } });
 }
 
 export function goToConnectionError(navigation: TabNavigation) {
@@ -51,6 +55,10 @@ export function goToAddresses(
   params?: { returnToCheckout?: boolean }
 ) {
   navigation.navigate('Profile', { screen: 'Addresses', params });
+}
+
+export function goToSupport(navigation: TabNavigation) {
+  navigation.navigate('Support', { screen: 'SupportHome' });
 }
 
 export function goToNotifications(navigation: TabNavigation) {

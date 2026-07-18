@@ -84,7 +84,7 @@ describe('additions utils', () => {
       additions: [{ id: 'x1', name: 'Extra', price: 2 }],
     };
     const groups = productAdditionGroups(flat);
-    expect(groups[0].name).toBe('Outros');
+    expect(groups[0].name).toBe('Outros adicionais');
   });
 
   test('sorts required groups before optional by priority', () => {

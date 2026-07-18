@@ -10,9 +10,29 @@ const KEYS = {
   cartPrefix: 'konekt_cart_',
 };
 
-export async function saveTokens(access: string, refresh: string): Promise<void> {
-  await SecureStore.setItemAsync(KEYS.accessToken, access);
-  await SecureStore.setItemAsync(KEYS.refreshToken, refresh);
+function requireSecureString(value: unknown, field: string): string {
+  if (typeof value === 'string' && value.length > 0) return value;
+  throw new Error(`Sessão inválida: ${field} ausente. Faça login novamente.`);
+}
+
+async function setSecureItem(key: string, value: unknown): Promise<void> {
+  if (typeof value !== 'string') {
+    throw new Error('Sessão inválida: valor não textual para SecureStore.');
+  }
+  await SecureStore.setItemAsync(key, value);
+}
+
+export async function saveTokens(access: unknown, refresh?: unknown): Promise<void> {
+  const accessToken = requireSecureString(access, 'accessToken');
+  await setSecureItem(KEYS.accessToken, accessToken);
+
+  if (typeof refresh === 'string' && refresh.length > 0) {
+    await setSecureItem(KEYS.refreshToken, refresh);
+    return;
+  }
+
+  // API web omite refreshToken no JSON; não pode passar undefined ao SecureStore.
+  await SecureStore.deleteItemAsync(KEYS.refreshToken).catch(() => undefined);
 }
 
 export async function getAccessToken(): Promise<string | null> {
@@ -24,12 +44,17 @@ export async function getRefreshToken(): Promise<string | null> {
 }
 
 export async function clearTokens(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEYS.accessToken);
-  await SecureStore.deleteItemAsync(KEYS.refreshToken);
+  await SecureStore.deleteItemAsync(KEYS.accessToken).catch(() => undefined);
+  await SecureStore.deleteItemAsync(KEYS.refreshToken).catch(() => undefined);
 }
 
 export async function saveCustomer(customer: Customer): Promise<void> {
-  await SecureStore.setItemAsync(KEYS.customer, JSON.stringify(customer));
+  if (!customer || typeof customer !== 'object') {
+    throw new Error('Sessão inválida: perfil ausente. Faça login novamente.');
+  }
+  const raw = JSON.stringify(customer);
+  // JSON.stringify(undefined) === undefined (não é string) — causa o erro do SecureStore.
+  await setSecureItem(KEYS.customer, raw);
 }
 
 export async function getCustomer(): Promise<Customer | null> {
@@ -38,7 +63,7 @@ export async function getCustomer(): Promise<Customer | null> {
 }
 
 export async function clearCustomer(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEYS.customer);
+  await SecureStore.deleteItemAsync(KEYS.customer).catch(() => undefined);
 }
 
 export async function saveTenant(tenant: Tenant): Promise<void> {

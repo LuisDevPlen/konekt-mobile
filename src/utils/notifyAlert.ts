@@ -1,16 +1,37 @@
 import { Platform, Vibration } from 'react-native';
 import { Audio } from 'expo-av';
-import * as Notifications from 'expo-notifications';
+import { isExpoGo } from './googleAuth';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type NotificationsModule = typeof import('expo-notifications');
+
+let notificationsMod: NotificationsModule | null | undefined;
+let handlerConfigured = false;
+
+function loadNotifications(): NotificationsModule | null {
+  if (isExpoGo()) return null;
+  if (notificationsMod !== undefined) return notificationsMod;
+  try {
+    // Lazy require: import estático dispara DevicePushTokenAutoRegistration no Expo Go (SDK 53+).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    notificationsMod = require('expo-notifications') as NotificationsModule;
+    if (!handlerConfigured && notificationsMod) {
+      notificationsMod.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+      handlerConfigured = true;
+    }
+    return notificationsMod;
+  } catch {
+    notificationsMod = null;
+    return null;
+  }
+}
 
 let soundReady = false;
 
@@ -26,7 +47,7 @@ async function ensureAudioMode() {
   soundReady = true;
 }
 
-/** Vibração + som do sistema (notificação local). */
+/** Vibração + som do sistema (notificação local). No Expo Go: só vibração. */
 export async function playMessageAlert(title: string, body: string) {
   try {
     Vibration.vibrate(Platform.OS === 'ios' ? [0, 200] : 280);
@@ -34,9 +55,13 @@ export async function playMessageAlert(title: string, body: string) {
     // ignore
   }
 
+  const Notifications = loadNotifications();
+  if (!Notifications) {
+    return;
+  }
+
   try {
     await ensureAudioMode();
-    // Beep curto via notificação local (som padrão do sistema).
     await Notifications.scheduleNotificationAsync({
       content: {
         title,

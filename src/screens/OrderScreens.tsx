@@ -6,6 +6,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Modal,
+  Pressable,
+  Image,
 } from 'react-native';
 import { CompositeScreenProps, useFocusEffect } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -13,7 +16,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
-import { goToLogin, goToOrderStatus, goToOrderChat, goToNotifications, goToAddresses } from '../navigation/routes';
+import { goToLogin, goToOrderStatus, goToOrderChat, goToNotifications, goToSupport, goToAddresses } from '../navigation/routes';
+import { GuestAccessPanel } from '../components/GuestAccessPanel';
 import { Input, Button, ErrorBox } from '../components/ui';
 import { SacolaHeader, StickyFooter, RadioRow } from '../components/layout';
 import { OrderProgressStepper } from '../components/OrderProgressStepper';
@@ -31,11 +35,24 @@ import {
   isOrderActive,
 } from '../utils/orderStatus';
 import { ifood } from '../theme/ifood';
-import { validateEmail, validatePhone, validateRequired } from '../validators/forms';
+import { validateEmail, validatePhone, validateRequired, formatPhoneMask, digitsOnly } from '../validators/forms';
+import {
+  canCustomerCancelOrder,
+  CUSTOMER_CANCEL_REASONS,
+  customerCancelDescription,
+  customerCancelReasonLabel,
+  hasCustomerCancelRequest,
+  isCustomerCancelReason,
+} from '../constants/customerCancelReasons';
 import {
   FULFILLMENT_LABELS,
   PAYMENT_LABELS,
+  getOnlinePaymentMethods,
+  getPaymentMethodsForFulfillment,
   parseCurrencyInput,
+  paymentMethodLabel,
+  paymentOnSiteLabel,
+  PaymentChannel,
   requiresOnlineCheckout,
 } from '../utils/checkout';
 import * as WebBrowser from 'expo-web-browser';
@@ -67,14 +84,15 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
   const [step, setStep] = React.useState<'delivery' | 'payment'>('delivery');
   const [name, setName] = React.useState(customer?.name || '');
   const [email, setEmail] = React.useState(customer?.email || '');
-  const [phone, setPhone] = React.useState(customer?.phone || '');
+  const [phone, setPhone] = React.useState(formatPhoneMask(customer?.phone || ''));
   const [address, setAddress] = React.useState(customer?.address || '');
   const [fulfillmentType, setFulfillmentType] = React.useState<FulfillmentType>('delivery');
   const [timingMode, setTimingMode] = React.useState<'now' | 'later'>('now');
   const [scheduleDate, setScheduleDate] = React.useState('');
   const [scheduleTime, setScheduleTime] = React.useState('');
-  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethod>('pix');
-  const [paymentMethods, setPaymentMethods] = React.useState<PaymentMethod[]>(['pix', 'credit_card', 'debit_card', 'cash']);
+  const [paymentMethod, setPaymentMethod] = React.useState<string>('pix');
+  const [paymentChannel, setPaymentChannel] = React.useState<PaymentChannel>('on_site');
+  const [paymentMethods, setPaymentMethods] = React.useState<string[]>(['pix', 'credit_card', 'debit_card', 'cash']);
   const [tenant, setTenant] = React.useState<Tenant | null>(null);
   const [mpConfigured, setMpConfigured] = React.useState(false);
   const [coupon, setCoupon] = React.useState<StoreCartCoupon | null>(null);
@@ -99,7 +117,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
     if (customer) {
       setName(customer.name);
       setEmail(customer.email);
-      setPhone(customer.phone || '');
+      setPhone(formatPhoneMask(customer.phone || ''));
       setAddress(customer.address || '');
     }
   }, [customer]);
@@ -121,17 +139,39 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
     storeApi.getTenant(store.slug)
       .then((t) => {
         setTenant(t);
-        const methods = (t.payment_methods?.length
-          ? t.payment_methods
-          : ['pix', 'credit_card', 'debit_card', 'cash']) as PaymentMethod[];
-        setPaymentMethods(methods);
         setMpConfigured(!!t.mercado_pago_configured);
-        setPaymentMethod(methods.includes('pix') ? 'pix' : methods[0]);
       })
       .catch(() => {
-        setPaymentMethods(['pix', 'credit_card', 'debit_card', 'cash']);
+        setTenant(null);
+        setMpConfigured(false);
       });
   }, [store?.slug]);
+
+  React.useEffect(() => {
+    const methods = getPaymentMethodsForFulfillment(tenant, fulfillmentType);
+    setPaymentMethods(methods.length ? methods : ['pix', 'credit_card', 'debit_card', 'cash']);
+  }, [tenant, fulfillmentType]);
+
+  const onSitePaymentMethods = paymentMethods;
+  const onlinePaymentMethods = React.useMemo(
+    () => getOnlinePaymentMethods(paymentMethods, mpConfigured),
+    [paymentMethods, mpConfigured]
+  );
+  const activePaymentMethods = paymentChannel === 'online' ? onlinePaymentMethods : onSitePaymentMethods;
+
+  React.useEffect(() => {
+    if (paymentChannel === 'online' && !mpConfigured) {
+      setPaymentChannel('on_site');
+      return;
+    }
+    if (paymentChannel === 'online') {
+      if (paymentMethod !== 'pix') setPaymentMethod('pix');
+      return;
+    }
+    if (!activePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(activePaymentMethods[0] || 'pix');
+    }
+  }, [paymentChannel, mpConfigured, activePaymentMethods, paymentMethod]);
 
   const deliveryFeesEnabled = React.useMemo(() => {
     if (!tenant?.delivery_enabled) return false;
@@ -139,10 +179,10 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
     return Array.isArray(tiers) && tiers.length > 0;
   }, [tenant]);
 
-  const refreshDeliveryQuote = React.useCallback(async (shippingAddress: string) => {
+  const refreshDeliveryQuote = React.useCallback(async (shippingAddress: string, customerAddressId?: string | null) => {
     if (!store?.slug || fulfillmentType !== 'delivery' || !deliveryFeesEnabled) return;
     const trimmed = shippingAddress.trim();
-    if (trimmed.length < 8) {
+    if (!customerAddressId && trimmed.length < 8) {
       setDeliveryQuote(null);
       setDeliveryQuoteError('');
       return;
@@ -150,18 +190,21 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
     setDeliveryQuoteLoading(true);
     setDeliveryQuoteError('');
     try {
-      const quote = await storeApi.getDeliveryQuote(store.slug, trimmed);
-      if (address.trim() !== trimmed) return;
+      const quote = await storeApi.getDeliveryQuote(
+        store.slug,
+        customerAddressId ? { customerAddressId } : { shippingAddress: trimmed }
+      );
+      if (!customerAddressId && address.trim() !== trimmed) return;
       setDeliveryQuote(quote);
       if (!quote.withinRange) {
         setDeliveryQuoteError(`Entrega disponível apenas até ${quote.maxDistanceKm} km`);
       }
     } catch (e) {
-      if (address.trim() !== trimmed) return;
+      if (!customerAddressId && address.trim() !== trimmed) return;
       setDeliveryQuote(null);
       setDeliveryQuoteError(getFriendlyErrorMessage(e));
     } finally {
-      if (address.trim() === trimmed) {
+      if (customerAddressId || address.trim() === trimmed) {
         setDeliveryQuoteLoading(false);
       }
     }
@@ -174,10 +217,10 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
       return;
     }
     const timer = setTimeout(() => {
-      void refreshDeliveryQuote(address);
+      void refreshDeliveryQuote(address, customer?.selectedAddressId);
     }, 400);
     return () => clearTimeout(timer);
-  }, [fulfillmentType, address, refreshDeliveryQuote, deliveryFeesEnabled]);
+  }, [fulfillmentType, address, refreshDeliveryQuote, deliveryFeesEnabled, customer?.selectedAddressId]);
 
   const deliveryFee = React.useMemo(() => {
     if (fulfillmentType !== 'delivery' || !deliveryFeesEnabled) return 0;
@@ -187,8 +230,8 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
 
   const checkoutTotal = Math.round((total + deliveryFee) * 100) / 100;
 
-  const paymentOnDeliveryLabel =
-    fulfillmentType === 'pickup' ? 'Pagamento na retirada' : 'Pagamento na entrega';
+  const paymentOnDeliveryLabel = paymentOnSiteLabel(fulfillmentType);
+  const onlineCheckout = requiresOnlineCheckout(paymentChannel, mpConfigured);
 
   const checkoutBlockedByDelivery = fulfillmentType === 'delivery' && (
     address.trim().length < 8
@@ -258,20 +301,26 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
     if (err) { setError(err); return; }
     if (!store || items.length === 0) return;
     if (!paymentOptionsOpen) {
-      setError(`Toque em "${paymentOnDeliveryLabel}" e escolha a forma de pagamento`);
+      setError('Escolha a forma de pagamento para continuar');
       return;
     }
     if (checkoutBlockedByDelivery) {
       setError(deliveryQuoteError || 'Endereço fora da área de entrega');
       return;
     }
-    if (!paymentMethods.includes(paymentMethod)) {
+    if (paymentChannel === 'online' && !mpConfigured) {
+      setError('Pagamento online indisponível nesta loja');
+      return;
+    }
+    if (paymentChannel === 'online') {
+      // Meio real é escolhido no Checkout Pro; gravamos pix só como marcador online.
+    } else if (!activePaymentMethods.includes(paymentMethod)) {
       setError('Selecione uma forma de pagamento disponível');
       return;
     }
 
     let cashChangeFor: number | null = null;
-    if (paymentMethod === 'cash' && needsChange) {
+    if (paymentChannel === 'on_site' && paymentMethod === 'cash' && needsChange) {
       cashChangeFor = parseCurrencyInput(changeFor);
       if (!cashChangeFor) {
         setError('Informe o valor para troco');
@@ -297,21 +346,34 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
         })),
         customerName: name.trim(),
         customerEmail: email.trim(),
-        customerPhone: phone.trim(),
+        customerPhone: digitsOnly(phone) || phone.trim(),
         fulfillmentType,
         shippingAddress: fulfillmentType === 'delivery' ? address.trim() : undefined,
         deliveryDistanceKm: fulfillmentType === 'delivery' ? deliveryQuote?.distanceKm : undefined,
-        paymentMethod,
-        // Checkout mobile é sempre "pagamento na entrega/retirada" (não online).
-        payOnDelivery: !requiresOnlineCheckout(paymentMethod, mpConfigured),
-        cashChangeFor,
+        paymentMethod: onlineCheckout ? 'pix' : paymentMethod,
+        payOnDelivery: !onlineCheckout,
+        cashChangeFor: onlineCheckout ? null : cashChangeFor,
       });
-      await clearCart();
-      if (requiresOnlineCheckout(paymentMethod, mpConfigured)) {
+
+      if (onlineCheckout) {
         const checkout = await storeApi.createMercadoPagoCheckout(store.slug, order.id);
+        if (!checkout?.checkoutUrl) {
+          throw new AppApiError(
+            'Não foi possível abrir o Mercado Pago. Tente novamente ou pague na entrega.',
+            422,
+            'VALIDATION_ERROR'
+          );
+        }
+        await clearCart();
         await WebBrowser.openBrowserAsync(checkout.checkoutUrl);
+        try {
+          await storeApi.syncMercadoPagoPayment(store.slug, order.id);
+        } catch {
+          // Webhook continua sendo a fonte da verdade; segue para status.
+        }
         goToOrderStatus(navigation, { orderId: order.id, tenantSlug: store.slug });
       } else {
+        await clearCart();
         goToOrderStatus(navigation, { orderId: order.id, tenantSlug: store.slug });
       }
     } catch (e) {
@@ -484,8 +546,14 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
 
             <View style={styles.paymentDeliveryCard}>
               <TouchableOpacity
-                style={styles.paymentDeliveryHeader}
-                onPress={() => setPaymentOptionsOpen((open) => !open)}
+                style={[
+                  styles.paymentChannelRow,
+                  paymentChannel === 'on_site' && styles.paymentChannelRowSelected,
+                ]}
+                onPress={() => {
+                  setPaymentChannel('on_site');
+                  setPaymentOptionsOpen(true);
+                }}
                 activeOpacity={0.85}
               >
                 <View style={styles.paymentDeliveryIcon}>
@@ -494,23 +562,19 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
                 <View style={styles.optionCardBody}>
                   <Text style={styles.paymentDeliveryTitle}>{paymentOnDeliveryLabel}</Text>
                   <Text style={styles.paymentAccordionHint}>
-                    {paymentOptionsOpen
-                      ? `Selecionado: ${PAYMENT_LABELS[paymentMethod]}`
-                      : 'Toque para escolher como pagar'}
+                    Pague na loja ou ao receber
                   </Text>
                 </View>
-                <Ionicons
-                  name={paymentOptionsOpen ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color={ifood.colors.textMuted}
-                />
+                <View style={[styles.radioOuter, paymentChannel === 'on_site' && styles.radioOuterSelected]}>
+                  {paymentChannel === 'on_site' ? <View style={styles.radioInner} /> : null}
+                </View>
               </TouchableOpacity>
 
-              {paymentOptionsOpen ? (
+              {paymentChannel === 'on_site' && paymentOptionsOpen ? (
                 <View style={styles.paymentMethodsPanel}>
                   <Text style={styles.paymentMethodsHeading}>Como deseja pagar?</Text>
                   <View style={styles.paymentMethodsList}>
-                    {paymentMethods.map((method) => {
+                    {onSitePaymentMethods.map((method) => {
                       const selected = paymentMethod === method;
                       return (
                         <TouchableOpacity
@@ -535,7 +599,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
                             color={selected ? ifood.colors.primary : ifood.colors.textSecondary}
                           />
                           <Text style={[styles.paymentMethodLabel, selected && styles.optionCardTitleSelected]}>
-                            {PAYMENT_LABELS[method]}
+                            {paymentMethodLabel(method, tenant?.payment_method_labels)}
                           </Text>
                           <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
                             {selected ? <View style={styles.radioInner} /> : null}
@@ -574,6 +638,44 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
                   ) : null}
                 </View>
               ) : null}
+            </View>
+
+            <View style={[styles.paymentDeliveryCard, !mpConfigured && styles.paymentChannelDisabled]}>
+              <TouchableOpacity
+                style={[
+                  styles.paymentChannelRow,
+                  paymentChannel === 'online' && styles.paymentChannelRowSelected,
+                  !mpConfigured && styles.paymentChannelRowDisabled,
+                ]}
+                onPress={() => {
+                  if (!mpConfigured) return;
+                  setPaymentChannel('online');
+                  setPaymentMethod('pix');
+                  setPaymentOptionsOpen(true);
+                  setNeedsChange(false);
+                  setChangeFor('');
+                }}
+                activeOpacity={mpConfigured ? 0.85 : 1}
+                disabled={!mpConfigured}
+              >
+                <Image
+                  source={require('../../assets/mercado-pago-logo.png')}
+                  style={styles.mpLogo}
+                  resizeMode="contain"
+                  accessibilityLabel="Mercado Pago"
+                />
+                <View style={styles.optionCardBody}>
+                  <Text style={styles.paymentDeliveryTitle}>Mercado Pago</Text>
+                  <Text style={styles.paymentAccordionHint}>
+                    {mpConfigured
+                      ? 'PIX, cartão ou saldo — você escolhe no Mercado Pago'
+                      : 'Disponível quando a loja conectar o Mercado Pago'}
+                  </Text>
+                </View>
+                <View style={[styles.radioOuter, paymentChannel === 'online' && styles.radioOuterSelected]}>
+                  {paymentChannel === 'online' ? <View style={styles.radioInner} /> : null}
+                </View>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.summaryBox}>
@@ -630,7 +732,11 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
               activeOpacity={0.9}
             >
               <Text style={styles.continueText}>
-                {loading ? 'Enviando...' : 'Confirmar pedido'}
+                {loading
+                  ? 'Enviando...'
+                  : onlineCheckout
+                    ? 'Pagar com Mercado Pago'
+                    : 'Confirmar pedido'}
               </Text>
             </TouchableOpacity>
           )}
@@ -643,25 +749,75 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
 export function AddressesScreen({ navigation, route }: AddressesProps) {
   const { customer, refreshProfile } = useAuth();
   const insets = useSafeAreaInsets();
+  const [phone, setPhone] = React.useState(formatPhoneMask(customer?.phone || ''));
   const [address, setAddress] = React.useState(customer?.address || '');
+  const [savedAddresses, setSavedAddresses] = React.useState(customer?.savedAddresses ?? []);
+  const [selectedAddressId, setSelectedAddressId] = React.useState(customer?.selectedAddressId ?? null);
+  const [addingNewAddress, setAddingNewAddress] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [removingAddressId, setRemovingAddressId] = React.useState<string | null>(null);
   const [error, setError] = React.useState('');
   const returnToCheckout = route.params?.returnToCheckout;
 
   React.useEffect(() => {
-    if (customer) setAddress(customer.address || '');
+    if (customer) {
+      setPhone(formatPhoneMask(customer.phone || ''));
+      setAddress(customer.address || '');
+      setSavedAddresses(customer.savedAddresses ?? []);
+      setSelectedAddressId(customer.selectedAddressId ?? null);
+    }
   }, [customer]);
 
+  const selectAddress = async (addressId: string) => {
+    setSaving(true);
+    setError('');
+    try {
+      await storeApi.selectSavedAddress(addressId);
+      await refreshProfile();
+      setSelectedAddressId(addressId);
+    } catch (e) {
+      setError(getFriendlyErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeAddress = async (addressId: string) => {
+    setRemovingAddressId(addressId);
+    setError('');
+    try {
+      await storeApi.deleteSavedAddress(addressId);
+      await refreshProfile();
+    } catch (e) {
+      setError(getFriendlyErrorMessage(e));
+    } finally {
+      setRemovingAddressId(null);
+    }
+  };
+
   const save = async () => {
-    const err = validateRequired(address, 'Endereço');
-    if (err) {
-      setError(err);
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) {
+      setError(phoneErr);
       return;
+    }
+    if (addingNewAddress) {
+      const addressErr = validateRequired(address, 'Endereço');
+      if (addressErr) {
+        setError(addressErr);
+        return;
+      }
     }
     setSaving(true);
     setError('');
     try {
-      await storeApi.updateProfile({ address: address.trim() });
+      await storeApi.updateProfile({
+        phone: digitsOnly(phone),
+      });
+      if (addingNewAddress) {
+        await storeApi.addSavedAddress({ address: address.trim() });
+        setAddingNewAddress(false);
+      }
       await refreshProfile();
       if (returnToCheckout) {
         navigation.getParent()?.navigate('Home', { screen: 'Checkout' });
@@ -676,28 +832,109 @@ export function AddressesScreen({ navigation, route }: AddressesProps) {
   };
 
   return (
-    <View style={styles.checkoutContainer}>
+    <View style={[styles.checkoutContainer, { backgroundColor: ifood.colors.bgSection }]}>
       <View style={[styles.addressesHeader, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={ifood.colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.sacolaTitleInline}>Endereço de entrega</Text>
+        <Text style={styles.sacolaTitleInline}>Endereço e contato</Text>
         <View style={styles.sacolaSpacerInline} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.checkoutScroll}>
-        <Text style={styles.sectionTitle}>Seu endereço</Text>
-        <Text style={styles.addressesHint}>
-          Informe rua, número, bairro, cidade e CEP para calcular a entrega no checkout.
-        </Text>
-        <Input
-          placeholder="Ex: Rua Exemplo 123, Centro, Cidade - UF, CEP 00000-000"
-          value={address}
-          onChangeText={setAddress}
-          multiline
-          style={{ marginHorizontal: 16 }}
-        />
-        {error ? <ErrorBox message={error} /> : null}
+      <ScrollView
+        contentContainerStyle={styles.addressEditScroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.editCard}>
+          <View style={styles.editCardHeader}>
+            <View style={styles.editCardIcon}>
+              <Ionicons name="call-outline" size={18} color={ifood.colors.primary} />
+            </View>
+            <View style={styles.editCardHeaderText}>
+              <Text style={styles.editCardTitle}>Contato</Text>
+              <Text style={styles.editCardHint}>
+                Telefone para a loja falar sobre o pedido
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.editFieldLabel}>Telefone</Text>
+          <Input
+            placeholder="(00) 00000-0000"
+            value={phone}
+            onChangeText={(text) => setPhone(formatPhoneMask(text))}
+            keyboardType="phone-pad"
+            maxLength={15}
+            style={styles.editInput}
+          />
+          <Text style={styles.editCardNote}>Nome e e-mail não podem ser alterados aqui.</Text>
+        </View>
+
+        <View style={styles.editCard}>
+          <View style={styles.editCardHeader}>
+            <View style={styles.editCardIcon}>
+              <Ionicons name="location-outline" size={18} color={ifood.colors.primary} />
+            </View>
+            <View style={styles.editCardHeaderText}>
+              <Text style={styles.editCardTitle}>Meus endereços</Text>
+              <Text style={styles.editCardHint}>
+                Adicione, alterne entre endereços ou remova os que não usar mais.
+              </Text>
+            </View>
+          </View>
+
+          {savedAddresses.map((item) => (
+            <View
+              key={item.id}
+              style={[styles.addressCard, item.id === selectedAddressId && styles.addressCardActive]}
+            >
+              <TouchableOpacity
+                style={styles.addressCardMain}
+                onPress={() => void selectAddress(item.id)}
+                activeOpacity={0.85}
+                disabled={saving || removingAddressId === item.id}
+              >
+                <Ionicons
+                  name={item.id === selectedAddressId ? 'radio-button-on' : 'radio-button-off'}
+                  size={18}
+                  color={ifood.colors.primary}
+                />
+                <Text style={styles.addressText}>{item.formattedAddress}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => void removeAddress(item.id)}
+                disabled={saving || removingAddressId === item.id}
+                hitSlop={8}
+              >
+                <Text style={styles.addressRemoveText}>
+                  {removingAddressId === item.id ? '...' : 'Remover'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {addingNewAddress ? (
+            <>
+              <Text style={styles.editFieldLabel}>Novo endereço completo</Text>
+              <Input
+                placeholder="Rua, número, bairro, cidade - UF, CEP"
+                value={address}
+                onChangeText={setAddress}
+                multiline
+                style={styles.editInput}
+              />
+            </>
+          ) : (
+            <TouchableOpacity style={styles.addAddressBtn} onPress={() => setAddingNewAddress(true)}>
+              <Text style={styles.addAddressBtnText}>+ Adicionar endereço</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {error ? (
+          <View style={styles.editErrorWrap}>
+            <ErrorBox message={error} />
+          </View>
+        ) : null}
       </ScrollView>
 
       <StickyFooter>
@@ -708,7 +945,11 @@ export function AddressesScreen({ navigation, route }: AddressesProps) {
           activeOpacity={0.9}
         >
           <Text style={styles.confirmBtnText}>
-            {saving ? 'Salvando...' : returnToCheckout ? 'Salvar e voltar ao pedido' : 'Salvar endereço'}
+            {saving
+              ? 'Salvando...'
+              : returnToCheckout
+                ? 'Salvar e voltar ao pedido'
+                : 'Salvar alterações'}
           </Text>
         </TouchableOpacity>
       </StickyFooter>
@@ -804,6 +1045,11 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
   const [reviewComment, setReviewComment] = React.useState('');
   const [submittingReview, setSubmittingReview] = React.useState(false);
   const [reviewError, setReviewError] = React.useState('');
+  const [cancelModalOpen, setCancelModalOpen] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState('');
+  const [cancelNotes, setCancelNotes] = React.useState('');
+  const [cancellingOrder, setCancellingOrder] = React.useState(false);
+  const [cancelError, setCancelError] = React.useState('');
   const [error, setError] = React.useState('');
   const { orderId, tenantSlug } = route.params;
   const starRange = [1, 2, 3, 4, 5];
@@ -860,6 +1106,31 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
     }
   };
 
+  const confirmCancelOrder = async () => {
+    if (!order || !cancelReason || cancellingOrder) return;
+    if (cancelReason === 'other' && cancelNotes.trim().length < 3) {
+      setCancelError('Descreva o motivo do cancelamento');
+      return;
+    }
+    setCancellingOrder(true);
+    setCancelError('');
+    try {
+      const updated = await storeApi.cancelOrder(tenantSlug, orderId, {
+        version: order.version,
+        cancelReason,
+        ...(cancelNotes.trim() ? { cancelNotes: cancelNotes.trim() } : {}),
+      });
+      setOrder(updated);
+      setCancelModalOpen(false);
+      setCancelReason('');
+      setCancelNotes('');
+    } catch (e) {
+      setCancelError(getFriendlyErrorMessage(e));
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
 
   if (error) {
@@ -880,6 +1151,11 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
   const isCancelled = order.status === 'cancelled';
   const isDelivered = order.status === 'delivered';
   const isPaid = order.payment_status === 'paid';
+  const canCancel = canCustomerCancelOrder(order);
+  const pendingCancel = hasCustomerCancelRequest(order);
+  const cancelledMessage = isCustomerCancelReason(order.cancel_reason)
+    ? `Você cancelou este pedido${customerCancelDescription(order) ? `. Motivo: ${customerCancelDescription(order)}` : '.'}`
+    : 'Este pedido foi cancelado pela loja.';
 
   return (
     <View style={styles.statusScreen}>
@@ -916,9 +1192,18 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
       ) : (
         <View style={styles.cancelledBanner}>
           <Ionicons name="alert-circle-outline" size={22} color={ifood.colors.danger} />
-          <Text style={styles.cancelledText}>Este pedido foi cancelado pela loja.</Text>
+          <Text style={styles.cancelledText}>{cancelledMessage}</Text>
         </View>
       )}
+
+      {pendingCancel ? (
+        <View style={styles.cancelPendingBanner}>
+          <Ionicons name="time-outline" size={22} color="#9a3412" />
+          <Text style={styles.cancelPendingText}>
+            Cancelamento solicitado. Motivo: {customerCancelDescription(order)}. Aguardando a loja aceitar.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.statusCard}>
         {order.fulfillment_type ? (
@@ -998,6 +1283,21 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
             </View>
           ))}
         </View>
+      ) : null}
+
+      {canCancel ? (
+        <TouchableOpacity
+          style={styles.cancelOrderBtn}
+          activeOpacity={0.85}
+          onPress={() => {
+            setCancelError('');
+            setCancelReason('');
+            setCancelNotes('');
+            setCancelModalOpen(true);
+          }}
+        >
+          <Text style={styles.cancelOrderBtnText}>Cancelar pedido</Text>
+        </TouchableOpacity>
       ) : null}
 
       {isDelivered ? (
@@ -1105,6 +1405,90 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
         <Text style={styles.autoRefreshHint}>Atualização automática a cada 30 segundos</Text>
       ) : null}
       </ScrollView>
+
+      <Modal
+        visible={cancelModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!cancellingOrder) setCancelModalOpen(false);
+        }}
+      >
+        <Pressable
+          style={styles.cancelModalBackdrop}
+          onPress={() => {
+            if (!cancellingOrder) setCancelModalOpen(false);
+          }}
+        >
+          <Pressable style={styles.cancelModalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.cancelModalTitle}>Cancelar pedido</Text>
+            <Text style={styles.cancelModalIntro}>
+              Selecione o motivo do cancelamento. A loja será notificada.
+            </Text>
+            {CUSTOMER_CANCEL_REASONS.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.cancelReasonOption,
+                  cancelReason === item.id && styles.cancelReasonOptionSelected,
+                ]}
+                onPress={() => setCancelReason(item.id)}
+                disabled={cancellingOrder}
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.cancelReasonRadio,
+                    cancelReason === item.id && styles.cancelReasonRadioSelected,
+                  ]}
+                />
+                <Text style={styles.cancelReasonLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            {cancelReason === 'other' ? (
+              <TextInput
+                style={styles.cancelNotesInput}
+                value={cancelNotes}
+                onChangeText={setCancelNotes}
+                placeholder="Descreva o motivo do cancelamento"
+                multiline
+                maxLength={500}
+                editable={!cancellingOrder}
+              />
+            ) : null}
+            {cancelError ? <Text style={styles.reviewError}>{cancelError}</Text> : null}
+            <View style={styles.cancelModalActions}>
+              <TouchableOpacity
+                style={styles.cancelModalSecondary}
+                onPress={() => setCancelModalOpen(false)}
+                disabled={cancellingOrder}
+              >
+                <Text style={styles.cancelModalSecondaryText}>Voltar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.cancelModalPrimary,
+                  (
+                    !cancelReason
+                    || cancellingOrder
+                    || (cancelReason === 'other' && cancelNotes.trim().length < 3)
+                  ) && styles.reviewSubmitBtnDisabled,
+                ]}
+                onPress={confirmCancelOrder}
+                disabled={
+                  !cancelReason
+                  || cancellingOrder
+                  || (cancelReason === 'other' && cancelNotes.trim().length < 3)
+                }
+              >
+                <Text style={styles.cancelModalPrimaryText}>
+                  {cancellingOrder ? 'Enviando...' : 'Solicitar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1221,12 +1605,11 @@ export function ProfileScreen({ navigation }: ProfileProps) {
 
   if (!isAuthenticated) {
     return (
-      <View style={[styles.profileContainer, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.profileTitle}>Perfil</Text>
-        <Text style={styles.profileSub}>Entre para gerenciar sua conta e pedidos</Text>
-        <Button label="Entrar" onPress={() => goToLogin(navigation)} />
-        <Button label="Criar conta" variant="secondary" onPress={() => navigation.navigate('Register')} />
-      </View>
+      <GuestAccessPanel
+        variant="profile"
+        onPrimaryPress={() => goToLogin(navigation)}
+        onSecondaryPress={() => navigation.navigate('Register')}
+      />
     );
   }
 
@@ -1250,16 +1633,32 @@ export function ProfileScreen({ navigation }: ProfileProps) {
           <Text style={styles.profileInfoLabel}>E-mail</Text>
           <Text style={styles.profileInfoValue}>{customer?.email || '—'}</Text>
         </View>
-        <View style={styles.profileInfoRow}>
-          <Text style={styles.profileInfoLabel}>Telefone</Text>
-          <Text style={styles.profileInfoValue}>{customer?.phone?.trim() || 'Não informado'}</Text>
-        </View>
-        <View style={[styles.profileInfoRow, styles.profileInfoRowLast]}>
-          <Text style={styles.profileInfoLabel}>Endereço</Text>
-          <Text style={styles.profileInfoValue}>
-            {customer?.address?.trim() || 'Não cadastrado'}
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={[styles.profileInfoRow, styles.profileInfoRowEditable]}
+          onPress={() => navigation.navigate('Addresses')}
+          activeOpacity={0.75}
+        >
+          <View style={styles.profileInfoTextCol}>
+            <Text style={styles.profileInfoLabel}>Telefone</Text>
+            <Text style={styles.profileInfoValue}>
+              {customer?.phone?.trim() ? formatPhoneMask(customer.phone) : 'Não informado'}
+            </Text>
+          </View>
+          <Ionicons name="create-outline" size={18} color={ifood.colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.profileInfoRow, styles.profileInfoRowLast, styles.profileInfoRowEditable]}
+          onPress={() => navigation.navigate('Addresses')}
+          activeOpacity={0.75}
+        >
+          <View style={styles.profileInfoTextCol}>
+            <Text style={styles.profileInfoLabel}>Endereço</Text>
+            <Text style={styles.profileInfoValue}>
+              {customer?.address?.trim() || 'Não cadastrado'}
+            </Text>
+          </View>
+          <Ionicons name="create-outline" size={18} color={ifood.colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.menuSection}>
@@ -1277,9 +1676,15 @@ export function ProfileScreen({ navigation }: ProfileProps) {
           onPress={() => goToNotifications(navigation)}
         />
         <ProfileMenuItem
+          icon="headset-outline"
+          label="Suporte"
+          subtitle="Chamados, dúvidas e ajuda"
+          onPress={() => goToSupport(navigation)}
+        />
+        <ProfileMenuItem
           icon="location-outline"
-          label="Endereços"
-          subtitle="Alterar endereço de entrega"
+          label="Endereço e contato"
+          subtitle="Alterar telefone e endereço de entrega"
           onPress={() => navigation.navigate('Addresses')}
         />
         <ProfileMenuItem
@@ -1446,12 +1851,112 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     lineHeight: 18,
   },
+  addressEditScroll: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 120,
+    gap: 14,
+  },
+  editCard: {
+    backgroundColor: ifood.colors.white,
+    borderRadius: ifood.radius.lg,
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    padding: 16,
+    ...ifood.shadow.card,
+  },
+  editCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+  },
+  editCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: ifood.colors.chipBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editCardHeaderText: { flex: 1 },
+  editCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: ifood.colors.text,
+  },
+  editCardHint: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: ifood.colors.textSecondary,
+  },
+  editFieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: ifood.colors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  editInput: {
+    marginHorizontal: 0,
+    backgroundColor: ifood.colors.bgSecondary,
+    borderColor: ifood.colors.border,
+  },
+  editInputMultiline: {
+    minHeight: 96,
+    textAlignVertical: 'top',
+  },
+  editCardNote: {
+    marginTop: 10,
+    fontSize: 12,
+    color: ifood.colors.textMuted,
+    lineHeight: 16,
+  },
+  editErrorWrap: {
+    marginTop: 4,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: ifood.colors.text, marginBottom: 12, marginTop: 8, paddingHorizontal: 16 },
   addressCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
-    marginBottom: 20,
-    paddingHorizontal: 16,
+    marginBottom: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    borderRadius: ifood.radius.md,
+    backgroundColor: ifood.colors.white,
+  },
+  addressCardActive: {
+    borderColor: ifood.colors.primary,
+    backgroundColor: '#fff7f6',
+  },
+  addressCardMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+  },
+  addressRemoveText: {
+    color: '#b42318',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  addAddressBtn: {
+    marginTop: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    borderRadius: ifood.radius.md,
+    borderStyle: 'dashed',
+  },
+  addAddressBtnText: {
+    color: ifood.colors.primary,
+    fontWeight: '700',
   },
   addressBody: { flex: 1 },
   optionGroup: { gap: 10, marginBottom: 16, paddingHorizontal: 16 },
@@ -1481,6 +1986,21 @@ const styles = StyleSheet.create({
     backgroundColor: ifood.colors.white,
     overflow: 'hidden',
   },
+  paymentChannelDisabled: {
+    opacity: 0.72,
+  },
+  paymentChannelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+  },
+  paymentChannelRowSelected: {
+    backgroundColor: ifood.colors.chipBg,
+  },
+  paymentChannelRowDisabled: {
+    opacity: 0.85,
+  },
   paymentDeliveryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1494,6 +2014,11 @@ const styles = StyleSheet.create({
     backgroundColor: ifood.colors.chipBg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mpLogo: {
+    width: 96,
+    height: 39,
+    marginRight: 4,
   },
   paymentDeliveryTitle: {
     fontSize: 15,
@@ -1718,6 +2243,129 @@ const styles = StyleSheet.create({
     color: ifood.colors.danger,
     fontWeight: '600',
     lineHeight: 20,
+  },
+  cancelPendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fff7ed',
+    borderRadius: ifood.radius.lg,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#fdba74',
+  },
+  cancelPendingText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#9a3412',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  cancelNotesInput: {
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    fontSize: 14,
+    color: ifood.colors.text,
+  },
+  cancelOrderBtn: {
+    borderWidth: 1,
+    borderColor: '#e57373',
+    backgroundColor: '#fff',
+    borderRadius: ifood.radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cancelOrderBtnText: {
+    color: '#c62828',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  cancelModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  cancelModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 18,
+    gap: 10,
+  },
+  cancelModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: ifood.colors.text,
+  },
+  cancelModalIntro: {
+    fontSize: 14,
+    color: ifood.colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  cancelReasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    borderRadius: 12,
+    padding: 12,
+  },
+  cancelReasonOptionSelected: {
+    borderColor: ifood.colors.primary,
+    backgroundColor: '#fff5f5',
+  },
+  cancelReasonRadio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: ifood.colors.border,
+  },
+  cancelReasonRadioSelected: {
+    borderColor: ifood.colors.primary,
+    backgroundColor: ifood.colors.primary,
+  },
+  cancelReasonLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: ifood.colors.text,
+    fontWeight: '600',
+  },
+  cancelModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  cancelModalSecondary: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: ifood.colors.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelModalSecondaryText: {
+    fontWeight: '700',
+    color: ifood.colors.textSecondary,
+  },
+  cancelModalPrimary: {
+    flex: 1,
+    backgroundColor: ifood.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelModalPrimaryText: {
+    fontWeight: '700',
+    color: '#fff',
   },
   statusRow: {
     flexDirection: 'row',
@@ -2029,7 +2677,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: ifood.colors.border,
   },
+  profileInfoRowEditable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   profileInfoRowLast: { borderBottomWidth: 0 },
+  profileInfoTextCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
   profileInfoLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -2041,8 +2697,6 @@ const styles = StyleSheet.create({
     color: ifood.colors.text,
     lineHeight: 20,
   },
-  profileTitle: { fontSize: 24, fontWeight: '800', color: ifood.colors.text, paddingHorizontal: 16 },
-  profileSub: { fontSize: 14, color: ifood.colors.textSecondary, marginVertical: 12, paddingHorizontal: 16, lineHeight: 20 },
   menuSection: { borderTopWidth: 8, borderTopColor: ifood.colors.bgSecondary },
   menuItem: {
     flexDirection: 'row',
