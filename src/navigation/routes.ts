@@ -7,6 +7,11 @@ export function goToHome(navigation: TabNavigation) {
   navigation.navigate('Home', { screen: 'StoresHome' });
 }
 
+/** Cardápio da loja aberta — para onde o cliente volta depois do Checkout Pro. */
+export function goToStoreMenu(navigation: TabNavigation) {
+  navigation.navigate('Home', { screen: 'StoreHome' });
+}
+
 export function goToOrderStatus(
   navigation: TabNavigation,
   params: { orderId: string; tenantSlug: string }

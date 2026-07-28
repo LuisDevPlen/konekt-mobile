@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     height: 200,
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(15, 23, 42, 0.18)',
   },
   heroBadge: {

@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -53,6 +54,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const [product, setProduct] = React.useState<Product | null>(null);
   const [productQty, setProductQty] = React.useState(1);
   const [selectedAdditionQty, setSelectedAdditionQty] = React.useState<Map<string, number>>(new Map());
+  const [itemNotes, setItemNotes] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -64,6 +66,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     setAdditionError('');
     setProductQty(1);
     setSelectedAdditionQty(new Map());
+    setItemNotes('');
     try {
       const p = normalizeProductAdditions(await storeApi.getProduct(store.slug, route.params.productId));
       setProduct(p);
@@ -107,7 +110,12 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     const qty = Math.min(Math.max(1, productQty), maxProductQuantity(product));
     setAdding(true);
     setAdditionError('');
-    const result = await addItem(product, qty, selectedAdditionsPayload(selectedAdditionQty));
+    const result = await addItem(
+      product,
+      qty,
+      selectedAdditionsPayload(selectedAdditionQty),
+      itemNotes.trim() || null,
+    );
     setAdding(false);
 
     if (!result.ok) {
@@ -283,6 +291,23 @@ export function ProductDetailScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {available ? (
+          <View style={styles.notesCard}>
+            <Text style={styles.notesLabel}>Observação</Text>
+            <Text style={styles.notesHint}>Opcional — aparece na comanda da loja</Text>
+            <TextInput
+              style={styles.notesInput}
+              value={itemNotes}
+              onChangeText={(text) => setItemNotes(text.slice(0, 200))}
+              placeholder="Ex.: remover cebola"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              maxLength={200}
+              textAlignVertical="top"
+            />
+          </View>
+        ) : null}
+
         {additionError ? (
           <View style={styles.errorWrap}>
             <ErrorBox message={additionError} />
@@ -361,7 +386,7 @@ const styles = StyleSheet.create({
   groupHint: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   additionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -375,7 +400,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  additionInfo: { flex: 1, paddingHorizontal: 12 },
+  additionInfo: { flex: 1, paddingHorizontal: 12, paddingTop: 2 },
   additionName: { fontSize: 15, fontWeight: '600', color: colors.text },
   additionDesc: { fontSize: 13, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
   additionPrice: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
@@ -388,8 +413,31 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
   addBtnDisabled: { borderColor: colors.border },
+  notesCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bgSecondary,
+  },
+  notesLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
+  notesHint: { fontSize: 12, color: colors.textSecondary, marginTop: 2, marginBottom: 10 },
+  notesInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 20,
+  },
   errorWrap: { paddingHorizontal: 16, paddingTop: 8 },
   footer: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
   footerTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -158,4 +158,27 @@ describe('additions utils', () => {
     qty = changeAdditionQty(group.additions[1], group, qty, 1);
     expect(canIncreaseAddition(group.additions[2], group, qty)).toBe(false);
   });
+
+  test('blocks quantity above group max on the same item', () => {
+    const group: AdditionCategoryGroup = {
+      id: 'doces',
+      name: 'Adicionais doce',
+      min_selections: 0,
+      max_selections: 2,
+      required: false,
+      additions: [
+        { id: 'amendoim', name: 'Amendoim', price: 2, max_quantity: 99 },
+        { id: 'ovo', name: 'Ovomaltine', price: 3, max_quantity: 99 },
+      ],
+    };
+
+    let qty = new Map<string, number>();
+    qty = changeAdditionQty(group.additions[0], group, qty, 1);
+    qty = changeAdditionQty(group.additions[0], group, qty, 1);
+    expect(qty.get('amendoim')).toBe(2);
+    expect(canIncreaseAddition(group.additions[0], group, qty)).toBe(false);
+    qty = changeAdditionQty(group.additions[0], group, qty, 1);
+    expect(qty.get('amendoim')).toBe(2);
+  });
 });
+

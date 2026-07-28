@@ -198,11 +198,9 @@ export function additionQty(qtyMap: AdditionQtyMap, id: string): number {
   return qtyMap.get(id) ?? 0;
 }
 
-/** iFood: conta opções distintas selecionadas no grupo, não soma de unidades. */
+/** Soma das unidades no grupo (limite "Escolha até N"). */
 export function categorySelectionCount(group: AdditionCategoryGroup, qtyMap: AdditionQtyMap): number {
-  return group.additions.reduce((count, add) => (
-    additionQty(qtyMap, add.id) > 0 ? count + 1 : count
-  ), 0);
+  return group.additions.reduce((total, add) => total + additionQty(qtyMap, add.id), 0);
 }
 
 export function canIncreaseAddition(
@@ -215,8 +213,11 @@ export function canIncreaseAddition(
   if (current >= maxItem) return false;
 
   const maxGroup = group.max_selections ?? 99;
-  if (current === 0 && categorySelectionCount(group, qtyMap) >= maxGroup) {
-    return maxGroup === 1;
+  const total = categorySelectionCount(group, qtyMap);
+
+  if (total >= maxGroup) {
+    // max=1: permite trocar para outra opção
+    return maxGroup === 1 && current === 0;
   }
 
   return true;
@@ -230,16 +231,10 @@ export function changeAdditionQty(
 ): AdditionQtyMap {
   const current = additionQty(qtyMap, add.id);
   const maxItem = add.max_quantity ?? 99;
+  const maxGroup = group.max_selections ?? 99;
   let next = current + delta;
   if (next < 0) next = 0;
   if (next > maxItem) next = maxItem;
-
-  const maxGroup = group.max_selections ?? 99;
-  const selectingNew = current === 0;
-
-  if (delta > 0 && next > 0 && selectingNew && maxGroup > 1 && categorySelectionCount(group, qtyMap) >= maxGroup) {
-    return qtyMap;
-  }
 
   const nextMap = new Map(qtyMap);
 
@@ -247,6 +242,15 @@ export function changeAdditionQty(
     for (const other of group.additions) {
       if (other.id !== add.id) nextMap.delete(other.id);
     }
+  }
+
+  if (delta > 0 && next > current) {
+    const othersTotal = categorySelectionCount(group, nextMap) - current;
+    const room = maxGroup - othersTotal;
+    if (room <= 0 && !(maxGroup === 1 && current === 0)) {
+      return qtyMap;
+    }
+    if (next > room) next = Math.max(current, room);
   }
 
   if (next === 0) {
@@ -267,11 +271,11 @@ export function validateAdditionSelections(
     const neededMin = groupMinimumSelections(group);
     if (selectedCount < neededMin) {
       return neededMin === 1
-        ? `Selecione pelo menos 1 opção em "${group.name}"`
-        : `Selecione pelo menos ${neededMin} opções em "${group.name}"`;
+        ? `Selecione pelo menos 1 em "${group.name}"`
+        : `Selecione pelo menos ${neededMin} em "${group.name}"`;
     }
     if (selectedCount > max) {
-      return `Máximo de ${max} opções em "${group.name}"`;
+      return `Máximo de ${max} em "${group.name}"`;
     }
   }
 

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Dimensions,
   Image,
   LayoutChangeEvent,
   NativeScrollEvent,
@@ -36,7 +35,6 @@ type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>
 >;
 
-const { width } = Dimensions.get('window');
 
 type CategorySection = {
   id: string;
@@ -462,8 +460,10 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   hero: { height: 180, position: 'relative' },
   heroBg: { flex: 1, overflow: 'hidden' },
-  heroImage: { ...StyleSheet.absoluteFillObject, width, height: 180, opacity: 0.85 },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.15)' },
+  // absoluteFill já estica na largura; fixar width congelaria o valor do
+  // primeiro render e cortaria a imagem ao girar a tela.
+  heroImage: { ...StyleSheet.absoluteFill, height: 180, opacity: 0.85 },
+  heroOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.15)' },
   logoWrap: { position: 'absolute', bottom: -28, left: 0, right: 0, alignItems: 'center' },
   logo: {
     width: 56,

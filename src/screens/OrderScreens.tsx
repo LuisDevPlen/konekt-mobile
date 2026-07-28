@@ -16,7 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
-import { goToLogin, goToOrderStatus, goToOrderChat, goToNotifications, goToSupport, goToAddresses } from '../navigation/routes';
+import { goToLogin, goToOrderStatus, goToOrderChat, goToNotifications, goToSupport, goToAddresses, goToStoreMenu } from '../navigation/routes';
 import { GuestAccessPanel } from '../components/GuestAccessPanel';
 import { Input, Button, ErrorBox } from '../components/ui';
 import { SacolaHeader, StickyFooter, RadioRow } from '../components/layout';
@@ -56,6 +56,7 @@ import {
   requiresOnlineCheckout,
 } from '../utils/checkout';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { FulfillmentType, HomeStackParamList, OrdersStackParamList, ProfileStackParamList, PaymentMethod, OrderMessage, OrderReview, AppNotification, StoreCartCoupon, DeliveryQuote, Tenant } from '../types';
 
 type CheckoutProps = CompositeScreenProps<
@@ -343,6 +344,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
           additions: (i.selectedAdditions ?? [])
             .filter((a) => a?.id && Number(a.quantity) > 0)
             .map((a) => ({ id: String(a.id), quantity: Number(a.quantity) })),
+          notes: i.notes?.trim() || null,
         })),
         customerName: name.trim(),
         customerEmail: email.trim(),
@@ -356,7 +358,10 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
       });
 
       if (onlineCheckout) {
-        const checkout = await storeApi.createMercadoPagoCheckout(store.slug, order.id);
+        // Deep link de retorno: o Mercado Pago volta para a página web de retorno e ela
+        // redireciona para cá, o que fecha o navegador sozinho quando o pagamento termina.
+        const returnUrl = Linking.createURL('pagamento/retorno');
+        const checkout = await storeApi.createMercadoPagoCheckout(store.slug, order.id, returnUrl);
         if (!checkout?.checkoutUrl) {
           throw new AppApiError(
             'Não foi possível abrir o Mercado Pago. Tente novamente ou pague na entrega.',
@@ -365,12 +370,13 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
           );
         }
         await clearCart();
-        await WebBrowser.openBrowserAsync(checkout.checkoutUrl);
+        await WebBrowser.openAuthSessionAsync(checkout.checkoutUrl, returnUrl);
         try {
           await storeApi.syncMercadoPagoPayment(store.slug, order.id);
         } catch {
           // Webhook continua sendo a fonte da verdade; segue para status.
         }
+        goToStoreMenu(navigation);
         goToOrderStatus(navigation, { orderId: order.id, tenantSlug: store.slug });
       } else {
         await clearCart();
@@ -1155,7 +1161,9 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
   const pendingCancel = hasCustomerCancelRequest(order);
   const cancelledMessage = isCustomerCancelReason(order.cancel_reason)
     ? `Você cancelou este pedido${customerCancelDescription(order) ? `. Motivo: ${customerCancelDescription(order)}` : '.'}`
-    : 'Este pedido foi cancelado pela loja.';
+    : order.cancel_reason === 'not_accepted_in_time'
+      ? 'Este pedido foi cancelado porque a loja não aceitou em até 5 minutos.'
+      : 'Este pedido foi cancelado pela loja.';
 
   return (
     <View style={styles.statusScreen}>
@@ -1175,7 +1183,7 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
             color={isCancelled ? ifood.colors.danger : isDelivered ? ifood.colors.successBright : ifood.colors.primary}
           />
         </View>
-        <Text style={styles.statusHeadline}>{getOrderStatusHeadline(order.status)}</Text>
+        <Text style={styles.statusHeadline}>{getOrderStatusHeadline(order.status, order)}</Text>
         <Text style={styles.statusSub}>
           Pedido #{order.id.slice(0, 8)} · {new Date(order.created_at).toLocaleString('pt-BR')}
         </Text>
@@ -1184,7 +1192,7 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
       {!isCancelled ? (
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Acompanhe a entrega</Text>
-          <OrderProgressStepper status={order.status} />
+          <OrderProgressStepper status={order.status} order={order} />
           <Text style={styles.progressCurrent}>
             Etapa atual: <Text style={styles.progressCurrentBold}>{getOrderStatusLabel(order.status)}</Text>
           </Text>

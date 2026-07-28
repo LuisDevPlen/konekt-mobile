@@ -16,7 +16,12 @@ interface CartContextValue {
   itemCount: number;
   loading: boolean;
   canAddToCart: boolean;
-  addItem: (product: Product, quantity?: number, selectedAdditions?: SelectedAddition[]) => Promise<AddItemResult>;
+  addItem: (
+    product: Product,
+    quantity?: number,
+    selectedAdditions?: SelectedAddition[],
+    notes?: string | null,
+  ) => Promise<AddItemResult>;
   removeItem: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -91,7 +96,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addItem = useCallback(async (
     product: Product,
     quantity = 1,
-    selectedAdditions: SelectedAddition[] = []
+    selectedAdditions: SelectedAddition[] = [],
+    notes: string | null = null,
   ): Promise<AddItemResult> => {
     if (!isAuthenticated) {
       return { ok: false, reason: 'auth_required' };
@@ -105,6 +111,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId: product.id,
         quantity,
         additions: selectedAdditions,
+        notes: notes?.trim() || null,
         mode: 'add',
       });
       applyCartState(setItems, setServerTotal, cart);
@@ -149,6 +156,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId,
         quantity,
         additions: item?.selectedAdditions ?? [],
+        notes: item?.notes ?? null,
         mode: 'set',
       });
       applyCartState(setItems, setServerTotal, cart);

@@ -7,14 +7,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/platform-logo.png",
-    "splash": {
-      "image": "./assets/platform-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#EA1D2C"
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dinoeats.app"
+      "bundleIdentifier": "com.dinoeats.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification", "fetch"]
+      }
     },
     "android": {
       "package": "com.dinoeats.app",
@@ -22,7 +20,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/platform-logo-adaptive.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -35,6 +39,27 @@
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.630358177762-ermgfja5ki9699fa56s64dftl87maoqn"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/platform-logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#EA1D2C"
+        }
+      ],
+      "expo-status-bar",
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/platform-logo.png",
+          "color": "#EA1D2C",
+          "defaultChannel": "messages",
+          "sounds": []
         }
       ]
     ],

@@ -33,11 +33,18 @@ export function customerCancelReasonLabel(reasonId) {
   return CUSTOMER_CANCEL_REASONS.find((item) => item.id === reasonId)?.label || reasonId;
 }
 
+const STORE_SYSTEM_CANCEL_LABELS = {
+  not_accepted_in_time: 'A loja não aceitou o pedido em até 5 minutos',
+};
+
 export function customerCancelDescription(order) {
   if (!order?.cancel_reason && !order?.cancel_notes) return '';
   const notes = order.cancel_notes?.trim() || '';
   if (order.cancel_reason === 'other') {
     return notes || 'Outro motivo';
+  }
+  if (STORE_SYSTEM_CANCEL_LABELS[order.cancel_reason]) {
+    return STORE_SYSTEM_CANCEL_LABELS[order.cancel_reason];
   }
   const label = customerCancelReasonLabel(order.cancel_reason);
   if (notes) return `${label}. ${notes}`;

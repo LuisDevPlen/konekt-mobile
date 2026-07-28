@@ -480,10 +480,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
   },
   backdropImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   backdropTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   backdropContent: {

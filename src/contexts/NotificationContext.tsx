@@ -14,7 +14,6 @@ import { AppNotification } from '../types';
 import { storeApi } from '../services/storeApi';
 import { useAuth } from './AuthContext';
 import { playMessageAlert } from '../utils/notifyAlert';
-import { isExpoGo } from '../utils/googleAuth';
 import { navigateToOrderChat, navigateToOrderStatus } from '../navigation/ref';
 import { ifood } from '../theme/ifood';
 
@@ -115,35 +114,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let cancelled = false;
-    (async () => {
-      // Expo Go (SDK 53+) não tem push remoto — não carregar expo-notifications.
-      if (!isExpoGo()) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const Notifications = require('expo-notifications') as typeof import('expo-notifications');
-          const { status } = await Notifications.getPermissionsAsync();
-          if (status !== 'granted') {
-            await Notifications.requestPermissionsAsync();
-          }
-        } catch {
-          // build sem suporte nativo
-        }
-      }
-      if (!cancelled) void refreshNotifications();
-    })();
+    // Permissão pedida pelo NotificationPermissionModal (com contexto ao usuário).
+    void refreshNotifications();
 
     const interval = setInterval(() => {
       void refreshNotifications();
     }, POLL_MS);
 
     const onAppState = (state: AppStateStatus) => {
-      if (state === 'active') void refreshNotifications();
+      // Continua buscando mensagens ao voltar do segundo plano.
+      if (state === 'active' || state === 'background') {
+        void refreshNotifications();
+      }
     };
     const sub = AppState.addEventListener('change', onAppState);
 
     return () => {
-      cancelled = true;
       clearInterval(interval);
       sub.remove();
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);

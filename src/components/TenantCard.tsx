@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Tenant } from '../types';
 import { ifood, storeAccent } from '../theme/ifood';
@@ -13,14 +13,22 @@ interface TenantCardProps {
 }
 
 export function TenantCard({ tenant, onPress, variant = 'list' }: TenantCardProps) {
+  const { width } = useWindowDimensions();
   const accent = storeAccent(tenant.slug);
   const logoUri = resolveImageUrl(tenant.logo_url);
   const rating = formatStoreRating(tenant);
   const delivery = formatStoreDelivery(tenant);
 
   if (variant === 'featured') {
+    // Acompanha a largura da tela: 168 fixo ocupava metade de um aparelho de 320dp.
+    const cardWidth = Math.round(Math.min(190, Math.max(150, width * 0.42)));
+
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.featuredWrap}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={[styles.featuredWrap, { width: cardWidth }]}
+      >
         <View style={styles.featuredCard}>
           {logoUri ? (
             <Image source={{ uri: logoUri }} style={styles.featuredLogoImage} />
@@ -83,7 +91,6 @@ export function TenantCard({ tenant, onPress, variant = 'list' }: TenantCardProp
 
 const styles = StyleSheet.create({
   featuredWrap: {
-    width: 168,
     marginRight: 12,
   },
   featuredCard: {
@@ -110,6 +117,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: ifood.colors.text,
     lineHeight: 18,
+    // Reserva as 2 linhas do numberOfLines: sem isso, cards com nome curto
+    // ficam mais baixos que os de nome longo e a fileira sai desalinhada.
+    minHeight: 36,
   },
   featuredRating: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 2 },
   featuredMeta: { fontSize: 11, color: ifood.colors.textSecondary, marginTop: 2 },
@@ -135,10 +145,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   listLogoText: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  listBody: { flex: 1, paddingRight: 8 },
+  // minWidth: 0 deixa o texto encolher em vez de empurrar o chevron para fora.
+  listBody: { flex: 1, minWidth: 0, paddingRight: 8 },
   listName: { fontSize: 16, fontWeight: '700', color: ifood.colors.text },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
-  meta: { fontSize: 12, color: ifood.colors.textSecondary },
+  meta: { fontSize: 12, color: ifood.colors.textSecondary, flexShrink: 1 },
   metaDot: { fontSize: 12, color: ifood.colors.textMuted },
   metaFree: { color: ifood.colors.successBright, fontWeight: '600' },
   listDesc: { fontSize: 12, color: ifood.colors.textMuted, marginTop: 4 },

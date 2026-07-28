@@ -70,6 +70,6 @@ describe('uncategorized addition rules', () => {
     expect(group.min_selections).toBe(1);
     expect(group.max_selections).toBe(2);
     expect(group.required).toBe(true);
-    expect(validateAdditionSelections(product, new Map())).toContain('opção');
+    expect(validateAdditionSelections(product, new Map())).toContain('Outros adicionais');
   });
 });

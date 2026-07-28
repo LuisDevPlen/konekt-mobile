@@ -13,6 +13,7 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/ref';
 import { TermsGate } from './src/components/TermsGate';
 import { SplashOverlay } from './src/components/SplashOverlay';
+import { NotificationPermissionModal } from './src/components/NotificationPermissionModal';
 import { colors } from './src/theme/ifood';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -48,6 +49,7 @@ export default function App() {
                   <StatusBar style="dark" />
                   <RootNavigator />
                   <TermsGate />
+                  <NotificationPermissionModal />
                 </NavigationContainer>
                 {splashVisible ? (
                   <SplashOverlay onFinish={() => setSplashVisible(false)} />

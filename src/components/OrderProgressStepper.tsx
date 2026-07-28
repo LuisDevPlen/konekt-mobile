@@ -2,20 +2,20 @@ import React from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ifood } from '../theme/ifood';
-import { ORDER_FLOW_STEPS, getOrderStepIndex } from '../utils/orderStatus';
+import { getOrderFlowSteps, getOrderStepIndex } from '../utils/orderStatus';
 
 interface Props {
   status: string;
+  /** Pedido agendado usa a régua de agendamento (igual ao painel web). */
+  order?: { order_type?: string | null; scheduled_for?: string | null } | null;
 }
 
-export function OrderProgressStepper({ status }: Props) {
+export function OrderProgressStepper({ status, order }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < 380;
-  const currentIndex = getOrderStepIndex(status);
-  const progress =
-    ORDER_FLOW_STEPS.length > 1
-      ? currentIndex / (ORDER_FLOW_STEPS.length - 1)
-      : 0;
+  const steps = getOrderFlowSteps(order);
+  const currentIndex = getOrderStepIndex(status, order);
+  const progress = steps.length > 1 ? currentIndex / (steps.length - 1) : 0;
 
   return (
     <View style={styles.container}>
@@ -24,7 +24,7 @@ export function OrderProgressStepper({ status }: Props) {
           <View style={[styles.trackFill, { width: `${progress * 100}%` }]} />
         </View>
         <View style={styles.stepsRow}>
-          {ORDER_FLOW_STEPS.map((step, index) => {
+          {steps.map((step, index) => {
             const done = index < currentIndex;
             const active = index === currentIndex;
             const upcoming = index > currentIndex;

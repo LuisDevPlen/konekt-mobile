@@ -131,6 +131,11 @@ export function CartScreen({ navigation }: Props) {
                   {formatAdditionSummary(item)}
                 </Text>
               )}
+              {item.notes?.trim() ? (
+                <Text style={styles.itemNotes} numberOfLines={2}>
+                  Obs: {item.notes.trim()}
+                </Text>
+              ) : null}
             </View>
 
             <QuantityStepper
@@ -234,6 +239,7 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 15, fontWeight: '700', color: ifood.colors.text, lineHeight: 20 },
   itemPrice: { fontSize: 15, fontWeight: '800', color: ifood.colors.successBright, marginTop: 6 },
   itemAdditions: { fontSize: 12, color: ifood.colors.textSecondary, marginTop: 4 },
+  itemNotes: { fontSize: 12, color: ifood.colors.text, marginTop: 4, fontStyle: 'italic' },
   emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyEmoji: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: ifood.colors.text },

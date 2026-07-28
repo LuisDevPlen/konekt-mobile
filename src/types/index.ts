@@ -150,6 +150,8 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedAdditions: SelectedAddition[];
+  /** Observação do cliente para o item (ex.: remover cebola). */
+  notes?: string | null;
 }
 
 export interface StoreCartCoupon {
@@ -177,6 +179,7 @@ export interface OrderItem {
   unit_price: number;
   product_version: number;
   additions?: ProductAddition[];
+  notes?: string | null;
 }
 
 export interface Order {
@@ -196,6 +199,13 @@ export interface Order {
   cancel_reason?: string | null;
   cancel_notes?: string | null;
   cancel_requested_at?: string | null;
+  // Agendamento — a API envia estes campos e o acompanhamento do pedido depende deles.
+  order_type?: OrderType;
+  scheduled_for?: string | null;
+  scheduled_delivery_end?: string | null;
+  prep_start_at?: string | null;
+  estimated_prep_minutes?: number | null;
+  estimated_delivery_at?: string | null;
   items?: OrderItem[];
   created_at: string;
   updated_at?: string;
@@ -203,6 +213,7 @@ export interface Order {
   tenant_slug?: string;
 }
 
+export type OrderType = 'immediate' | 'scheduled';
 export type PaymentMethod = 'pix' | 'credit_card' | 'debit_card' | 'cash';
 export type FulfillmentType = 'pickup' | 'delivery';
 

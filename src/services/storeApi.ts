@@ -168,6 +168,7 @@ export const storeApi = {
     productId: string;
     quantity: number;
     additions?: SelectedAddition[];
+    notes?: string | null;
     mode?: 'add' | 'set';
   }) =>
     http.put<ApiResponse<CartResponse>>(`/store/${slug}/cart/items`, body).then((r) => r.data.data),
@@ -212,7 +213,13 @@ export const storeApi = {
     http.delete<ApiResponse<{ id: string; deleted: boolean }>>(`/store/auth/addresses/${addressId}`).then((r) => r.data.data),
 
   createOrder: (slug: string, body: {
-    items: { productId: string; quantity: number; productVersion: number; additions?: SelectedAddition[] }[];
+    items: {
+      productId: string;
+      quantity: number;
+      productVersion: number;
+      additions?: SelectedAddition[];
+      notes?: string | null;
+    }[];
     customerName: string;
     customerEmail: string;
     customerPhone: string;
@@ -242,10 +249,11 @@ export const storeApi = {
   payOrder: (slug: string, orderId: string, body: { paymentMethod: string; orderVersion: number }) =>
     http.post<ApiResponse<unknown>>(`/store/${slug}/orders/${orderId}/payment`, body).then((r) => r.data.data),
 
-  createMercadoPagoCheckout: (slug: string, orderId: string) =>
+  /** `returnUrl` é o deep link do app: a página de retorno da web usa ele para devolver o app. */
+  createMercadoPagoCheckout: (slug: string, orderId: string, returnUrl?: string) =>
     http.post<ApiResponse<{ paymentId: string; preferenceId: string; checkoutUrl: string }>>(
       `/store/${slug}/orders/${orderId}/payments/mercado-pago/checkout`,
-      {}
+      returnUrl ? { returnUrl } : {}
     ).then((r) => r.data.data),
 
   syncMercadoPagoPayment: (
