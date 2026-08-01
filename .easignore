@@ -1,0 +1,9 @@
+android/build
+android/app/build
+android/.gradle
+android/.kotlin
+android/gradle_out.log
+android/gradle_out2.log
+android/local.properties
+ios/build
+ios/Pods
