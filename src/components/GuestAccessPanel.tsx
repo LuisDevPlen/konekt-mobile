@@ -64,7 +64,7 @@ const VARIANTS: Record<GuestAccessVariant, VariantConfig> = {
   support: {
     eyebrow: 'Suporte',
     title: 'Estamos aqui para ajudar',
-    subtitle: 'Entre na sua conta para abrir chamados, acompanhar respostas e resolver dúvidas com nossa equipe.',
+    subtitle: 'Entre na sua conta para relatar bugs e problemas de uso da plataforma.',
     image: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1200&q=80',
     imageLabel: 'Atendimento Dino Eats',
     features: [

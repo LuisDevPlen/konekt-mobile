@@ -39,6 +39,8 @@ export function getFriendlyErrorMessage(error: unknown): string {
         return error.message || 'Registro não encontrado.';
       case 'CONFLICT':
         return error.message || 'Os dados foram alterados. Atualize e tente novamente.';
+      case 'RATE_LIMIT':
+        return error.message || 'Muitas solicitações em pouco tempo. Aguarde um momento e tente novamente.';
       case 'DATABASE_UNAVAILABLE':
         return 'Serviço temporariamente indisponível. Tente novamente em instantes.';
       case 'INTERNAL_ERROR':

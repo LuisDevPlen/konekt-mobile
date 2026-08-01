@@ -1,6 +1,15 @@
 import { AppApiError, getFriendlyErrorMessage } from '../src/utils/errors';
 
 describe('getFriendlyErrorMessage', () => {
+  test('mantém orientação amigável para rate limit', () => {
+    const error = new AppApiError(
+      'Muitas solicitações em pouco tempo. Aguarde 2 minutos e tente novamente.',
+      429,
+      'RATE_LIMIT'
+    );
+    expect(getFriendlyErrorMessage(error)).toContain('Aguarde 2 minutos');
+  });
+
   test('409 conflict', () => {
     const err = new AppApiError('Preço alterado', 409, 'CONFLICT');
     expect(getFriendlyErrorMessage(err)).toContain('Preço alterado');

@@ -71,6 +71,7 @@ export function getOrderFlowSteps(order?: OrderFlowRef): FlowStep[] {
 const PAYMENT_LABELS: Record<string, string> = {
   pending: 'Aguardando pagamento',
   paid: 'Pago',
+  failed: 'Pagamento recusado',
 };
 
 export function getOrderStepIndex(status: string, order?: OrderFlowRef): number {

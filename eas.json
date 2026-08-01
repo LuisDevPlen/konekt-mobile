@@ -23,8 +23,18 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com"
       }
     },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "credentialsSource": "local"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.dinoeats.com.br/api",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "630358177762-21rdhck17psdgtk9vd4rafomo1vc9134.apps.googleusercontent.com",

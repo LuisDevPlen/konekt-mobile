@@ -187,6 +187,9 @@ export interface Order {
   status: string;
   payment_status: string;
   pay_on_delivery?: boolean;
+  subtotal_amount?: number | null;
+  discount_amount?: number | null;
+  delivery_fee?: number | null;
   total_amount: number;
   customer_name: string;
   customer_email: string;

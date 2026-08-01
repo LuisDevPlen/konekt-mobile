@@ -1,4 +1,5 @@
 import React from 'react';
+import * as Crypto from 'expo-crypto';
 import {
   ScrollView,
   StyleSheet,
@@ -107,6 +108,8 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
   const [paymentOptionsOpen, setPaymentOptionsOpen] = React.useState(false);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const submitInFlightRef = React.useRef(false);
+  const orderAttemptKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     if (!isAuthenticated) {
@@ -333,6 +336,9 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
       }
     }
 
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    orderAttemptKeyRef.current ??= Crypto.randomUUID();
     setLoading(true);
     setError('');
     try {
@@ -355,7 +361,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
         paymentMethod: onlineCheckout ? 'pix' : paymentMethod,
         payOnDelivery: !onlineCheckout,
         cashChangeFor: onlineCheckout ? null : cashChangeFor,
-      });
+      }, orderAttemptKeyRef.current);
 
       if (onlineCheckout) {
         // Deep link de retorno: o Mercado Pago volta para a página web de retorno e ela
@@ -376,10 +382,12 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
         } catch {
           // Webhook continua sendo a fonte da verdade; segue para status.
         }
+        orderAttemptKeyRef.current = null;
         goToStoreMenu(navigation);
         goToOrderStatus(navigation, { orderId: order.id, tenantSlug: store.slug });
       } else {
         await clearCart();
+        orderAttemptKeyRef.current = null;
         goToOrderStatus(navigation, { orderId: order.id, tenantSlug: store.slug });
       }
     } catch (e) {
@@ -389,6 +397,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
         setError(getFriendlyErrorMessage(e));
       }
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -1157,7 +1166,8 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
   const isCancelled = order.status === 'cancelled';
   const isDelivered = order.status === 'delivered';
   const isPaid = order.payment_status === 'paid';
-  const canCancel = canCustomerCancelOrder(order);
+  const isPaymentFailed = order.payment_status === 'failed';
+  const canCancel = !isPaymentFailed && canCustomerCancelOrder(order);
   const pendingCancel = hasCustomerCancelRequest(order);
   const cancelledMessage = isCustomerCancelReason(order.cancel_reason)
     ? `Você cancelou este pedido${customerCancelDescription(order) ? `. Motivo: ${customerCancelDescription(order)}` : '.'}`
@@ -1173,23 +1183,25 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
         <View
           style={[
             styles.statusIconWrap,
-            isCancelled && styles.statusIconWrapCancelled,
+            (isCancelled || isPaymentFailed) && styles.statusIconWrapCancelled,
             isDelivered && styles.statusIconWrapDelivered,
           ]}
         >
           <Ionicons
-            name={isCancelled ? 'close-circle' : isDelivered ? 'checkmark-circle' : 'time-outline'}
+            name={isCancelled || isPaymentFailed ? 'close-circle' : isDelivered ? 'checkmark-circle' : 'time-outline'}
             size={32}
-            color={isCancelled ? ifood.colors.danger : isDelivered ? ifood.colors.successBright : ifood.colors.primary}
+            color={isCancelled || isPaymentFailed ? ifood.colors.danger : isDelivered ? ifood.colors.successBright : ifood.colors.primary}
           />
         </View>
-        <Text style={styles.statusHeadline}>{getOrderStatusHeadline(order.status, order)}</Text>
+        <Text style={styles.statusHeadline}>
+          {isPaymentFailed ? 'Pedido não confirmado' : getOrderStatusHeadline(order.status, order)}
+        </Text>
         <Text style={styles.statusSub}>
           Pedido #{order.id.slice(0, 8)} · {new Date(order.created_at).toLocaleString('pt-BR')}
         </Text>
       </View>
 
-      {!isCancelled ? (
+      {!isCancelled && !isPaymentFailed ? (
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Acompanhe a entrega</Text>
           <OrderProgressStepper status={order.status} order={order} />
@@ -1200,7 +1212,11 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
       ) : (
         <View style={styles.cancelledBanner}>
           <Ionicons name="alert-circle-outline" size={22} color={ifood.colors.danger} />
-          <Text style={styles.cancelledText}>{cancelledMessage}</Text>
+          <Text style={styles.cancelledText}>
+            {isPaymentFailed
+              ? 'O pagamento foi recusado. Este pedido não foi confirmado nem enviado para a loja.'
+              : cancelledMessage}
+          </Text>
         </View>
       )}
 
@@ -1259,6 +1275,42 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
         ) : null}
         <View style={styles.statusDivider} />
         <View style={styles.statusRow}>
+          <Text style={styles.statusRowLabel}>Subtotal</Text>
+          <Text style={styles.statusRowValue}>
+            {formatCurrency(Number(
+              order.subtotal_amount
+              ?? order.items?.reduce(
+                (sum, item) => sum + Number(item.unit_price) * Number(item.quantity),
+                0
+              )
+              ?? order.total_amount
+            ))}
+          </Text>
+        </View>
+        {Number(order.discount_amount ?? 0) > 0 ? (
+          <>
+            <View style={styles.statusDivider} />
+            <View style={styles.statusRow}>
+              <Text style={styles.statusRowLabel}>Desconto</Text>
+              <Text style={styles.statusDiscount}>
+                - {formatCurrency(Number(order.discount_amount))}
+              </Text>
+            </View>
+          </>
+        ) : null}
+        {order.fulfillment_type === 'delivery' ? (
+          <>
+            <View style={styles.statusDivider} />
+            <View style={styles.statusRow}>
+              <Text style={styles.statusRowLabel}>Taxa de entrega</Text>
+              <Text style={styles.statusRowValue}>
+                {formatCurrency(Number(order.delivery_fee ?? 0))}
+              </Text>
+            </View>
+          </>
+        ) : null}
+        <View style={styles.statusDivider} />
+        <View style={styles.statusRow}>
           <Text style={styles.statusRowLabel}>Total</Text>
           <Text style={styles.statusTotal}>{formatCurrency(Number(order.total_amount))}</Text>
         </View>
@@ -1276,20 +1328,40 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
       {order.items && order.items.length > 0 ? (
         <View style={styles.itemsCard}>
           <Text style={styles.itemsTitle}>Itens do pedido</Text>
-          {order.items.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
-              <Text style={styles.itemQty}>{item.quantity}x</Text>
-              <View style={styles.itemNameCol}>
-                <Text style={styles.itemName} numberOfLines={2}>{item.product_name}</Text>
-                {(item.additions || []).map((add) => (
-                  <Text key={add.id} style={styles.itemAddition} numberOfLines={1}>
-                    + {(add.quantity ?? 1) > 1 ? `${add.quantity}× ` : ''}{add.name}
+          {order.items.map((item) => {
+            const additionsPerUnit = (item.additions || []).reduce(
+              (sum, add) => sum + Number(add.price || 0) * Number(add.quantity || 1),
+              0
+            );
+            const baseUnitPrice = Math.max(0, Number(item.unit_price) - additionsPerUnit);
+
+            return (
+              <View key={item.id} style={styles.itemBlock}>
+                <View style={styles.itemRow}>
+                  <Text style={styles.itemQty}>{item.quantity}x</Text>
+                  <View style={styles.itemNameCol}>
+                    <Text style={styles.itemName} numberOfLines={2}>{item.product_name}</Text>
+                  </View>
+                  <Text style={styles.itemPrice}>
+                    {formatCurrency(baseUnitPrice * item.quantity)}
                   </Text>
-                ))}
+                </View>
+                {(item.additions || []).map((add) => {
+                  const additionQuantity = Number(add.quantity || 1);
+                  return (
+                    <View key={add.id} style={styles.itemAdditionRow}>
+                      <Text style={styles.itemAddition} numberOfLines={2}>
+                        + {additionQuantity > 1 ? `${additionQuantity}× ` : ''}{add.name}
+                      </Text>
+                      <Text style={styles.itemAdditionPrice}>
+                        {formatCurrency(Number(add.price || 0) * additionQuantity * item.quantity)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
-              <Text style={styles.itemPrice}>{formatCurrency(Number(item.unit_price) * item.quantity)}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : null}
 
@@ -1379,7 +1451,7 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
         </View>
       ) : null}
 
-      <TouchableOpacity
+      {!isPaymentFailed ? <TouchableOpacity
         style={styles.chatEntryCard}
         activeOpacity={0.85}
         onPress={() => navigation.navigate('OrderChat', {
@@ -1407,9 +1479,9 @@ export function OrderStatusScreen({ route, navigation }: OrderStatusProps) {
           </View>
         ) : null}
         <Ionicons name="chevron-forward" size={18} color={ifood.colors.textMuted} />
-      </TouchableOpacity>
+      </TouchableOpacity> : null}
 
-      {isOrderActive(order.status) ? (
+      {isOrderActive(order.status) && !isPaymentFailed ? (
         <Text style={styles.autoRefreshHint}>Atualização automática a cada 30 segundos</Text>
       ) : null}
       </ScrollView>
@@ -1686,7 +1758,7 @@ export function ProfileScreen({ navigation }: ProfileProps) {
         <ProfileMenuItem
           icon="headset-outline"
           label="Suporte"
-          subtitle="Chamados, dúvidas e ajuda"
+          subtitle="Bugs e ajuda com a plataforma"
           onPress={() => goToSupport(navigation)}
         />
         <ProfileMenuItem
@@ -2423,10 +2495,13 @@ const styles = StyleSheet.create({
     color: ifood.colors.text,
     marginBottom: 12,
   },
+  itemBlock: {
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
     gap: 8,
   },
   itemQty: {
@@ -2443,9 +2518,21 @@ const styles = StyleSheet.create({
     color: ifood.colors.text,
   },
   itemAddition: {
+    flex: 1,
     fontSize: 12,
     color: ifood.colors.textSecondary,
-    marginTop: 2,
+  },
+  itemAdditionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingLeft: 36,
+    marginTop: 5,
+  },
+  itemAdditionPrice: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: ifood.colors.textSecondary,
   },
   itemPrice: {
     fontSize: 14,
@@ -2651,6 +2738,7 @@ const styles = StyleSheet.create({
   statusId: { fontSize: 16, fontWeight: '700', color: ifood.colors.text },
   statusMeta: { fontSize: 14, color: ifood.colors.textSecondary, marginTop: 8 },
   statusTotal: { fontSize: 16, fontWeight: '800', color: ifood.colors.text },
+  statusDiscount: { fontSize: 14, fontWeight: '700', color: ifood.colors.success },
   profileContainer: { flex: 1, backgroundColor: ifood.colors.bg },
   profileHeader: { paddingHorizontal: 16, paddingBottom: 20 },
   avatar: {

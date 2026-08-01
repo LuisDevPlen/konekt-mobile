@@ -5,3 +5,5 @@ dist/
 *.log
 scripts/cmdline-tools.zip
 *.zip
+android-release/
+credentials.json

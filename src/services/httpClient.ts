@@ -58,6 +58,13 @@ function canRefreshSession(url?: string): boolean {
   return !!url && !isSessionAuthUrl(url);
 }
 
+function canRetryAfterNetworkFailure(request?: KonektRequestConfig): boolean {
+  if (!request) return false;
+  const method = String(request.method || 'get').toLowerCase();
+  if (method === 'get' || method === 'head' || method === 'options') return true;
+  return Boolean(request.headers?.['Idempotency-Key'] || request.headers?.['idempotency-key']);
+}
+
 http.interceptors.request.use(async (req: InternalAxiosRequestConfig) => {
   await ensureApiConnection();
   req.baseURL = getApiUrl();
@@ -96,7 +103,12 @@ http.interceptors.response.use(
       if (onLogout) await onLogout();
     }
 
-    if (!error.response && original && !(original as KonektRequestConfig)._konektRetried) {
+    if (
+      !error.response
+      && original
+      && !(original as KonektRequestConfig)._konektRetried
+      && canRetryAfterNetworkFailure(original as KonektRequestConfig)
+    ) {
       const candidates = resolveApiUrlCandidates();
       const current = getApiUrl();
       const nextIndex = candidates.indexOf(current) + 1;
@@ -111,6 +123,22 @@ http.interceptors.response.use(
 
     if (!error.response) {
       throw new AppApiError('Sem conexão com o servidor', 0, 'NETWORK_ERROR');
+    }
+
+    if (status === 429) {
+      const retryAfter = Number(error.response.headers?.['retry-after']);
+      const minutes = Math.ceil(retryAfter / 60);
+      const wait = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter < 60
+          ? 'alguns segundos'
+          : `${minutes} minuto${minutes === 1 ? '' : 's'}`
+        : 'um momento';
+      throw new AppApiError(
+        body?.message || `Muitas solicitações em pouco tempo. Aguarde ${wait} e tente novamente.`,
+        status,
+        'RATE_LIMIT',
+        body?.details as AppApiError['details']
+      );
     }
 
     throw new AppApiError(

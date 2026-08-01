@@ -100,7 +100,7 @@ export function SupportHomeScreen({ navigation }: HomeProps) {
           <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
           <View style={styles.menuCardText}>
             <Text style={styles.menuCardTitle}>Abrir novo chamado</Text>
-            <Text style={styles.menuCardSub}>Relate problemas, dúvidas ou sugestões</Text>
+            <Text style={styles.menuCardSub}>Relate bugs e problemas de uso da plataforma</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
         </TouchableOpacity>
@@ -216,6 +216,10 @@ export function SupportCreateScreen({ navigation }: CreateProps) {
     <View style={styles.container}>
       <SacolaHeader title="Novo chamado" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={[styles.formScroll, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <Text style={styles.supportScope}>
+          Para itens, pagamento, entrega ou atendimento do pedido, fale diretamente com a loja.
+          Este suporte atende bugs e problemas de usabilidade da plataforma.
+        </Text>
         {error ? <ErrorBox message={error} /> : null}
         <Text style={styles.fieldLabel}>Categoria</Text>
         <View style={styles.chipWrap}>
@@ -399,6 +403,16 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { padding: spacing.lg, gap: spacing.md },
   formScroll: { padding: spacing.lg, gap: spacing.sm },
+  supportScope: {
+    color: colors.textSecondary,
+    lineHeight: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
   detailScroll: { padding: spacing.lg, paddingBottom: spacing.xl },
   listContent: { padding: spacing.lg, gap: spacing.sm },
   menuCard: {

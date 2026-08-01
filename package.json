@@ -20,8 +20,10 @@
     "ios-preview": "powershell -ExecutionPolicy Bypass -File ./scripts/start-ios-preview.ps1",
     "web": "powershell -ExecutionPolicy Bypass -File ./scripts/start-ios-web.ps1",
     "preview": "powershell -ExecutionPolicy Bypass -File ./scripts/preview-both.ps1",
-    "build:apk": "eas build --platform android --profile preview",
-    "build:apk:local": "eas build --platform android --profile preview --local",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk-release.ps1",
+    "build:apk:local": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk-release.ps1",
+    "build:aab": "powershell -ExecutionPolicy Bypass -File ./scripts/build-aab-release.ps1",
+    "build:apk:eas": "eas build --platform android --profile production-apk",
     "test": "jest"
   },
   "dependencies": {

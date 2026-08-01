@@ -229,8 +229,10 @@ export const storeApi = {
     paymentMethod: string;
     payOnDelivery?: boolean;
     cashChangeFor?: number | null;
-  }) =>
-    http.post<ApiResponse<Order>>(`/store/${slug}/orders`, body).then((r) => r.data.data),
+  }, idempotencyKey?: string) =>
+    http.post<ApiResponse<Order>>(`/store/${slug}/orders`, body, {
+      headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    }).then((r) => r.data.data),
 
 
 

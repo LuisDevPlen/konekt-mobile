@@ -11,7 +11,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dinoeats.app",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification", "fetch"]
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -25,13 +28,18 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
+      "./plugins/withAndroidReleaseSigning",
       "expo-asset",
       "expo-font",
       "expo-web-browser",
@@ -66,7 +74,11 @@
     "extra": {
       "googleWebClientId": "630358177762-21rdhck17psdgtk9vd4rafomo1vc9134.apps.googleusercontent.com",
       "googleAndroidClientId": "630358177762-0s7vn3h57l2feel8i3p3vabem1m4b49k.apps.googleusercontent.com",
-      "googleIosClientId": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com"
-    }
+      "googleIosClientId": "630358177762-ermgfja5ki9699fa56s64dftl87maoqn.apps.googleusercontent.com",
+      "eas": {
+        "projectId": "ef078ac6-86b2-4d3d-8a32-a9ca8d2298fc"
+      }
+    },
+    "owner": "dinoeats"
   }
 }
