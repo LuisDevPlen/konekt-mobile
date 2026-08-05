@@ -13,6 +13,7 @@ import {
   OrderMessage,
   AppNotification,
   SelectedAddition,
+  ComboSelection,
   StoreCartCoupon,
   DeliveryQuote,
   SupportCategory,
@@ -168,6 +169,7 @@ export const storeApi = {
     productId: string;
     quantity: number;
     additions?: SelectedAddition[];
+    comboSelections?: ComboSelection[];
     notes?: string | null;
     mode?: 'add' | 'set';
   }) =>
@@ -218,6 +220,7 @@ export const storeApi = {
       quantity: number;
       productVersion: number;
       additions?: SelectedAddition[];
+      comboSelections?: ComboSelection[];
       notes?: string | null;
     }[];
     customerName: string;

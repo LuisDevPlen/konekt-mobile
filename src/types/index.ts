@@ -102,6 +102,8 @@ export interface ProductAddition {
   name: string;
   description?: string | null;
   price: number;
+  promo_active?: boolean;
+  promo_price?: number | string | null;
   image_url?: string | null;
   min_quantity?: number;
   max_quantity?: number;
@@ -128,12 +130,32 @@ export interface SelectedAddition {
   quantity: number;
 }
 
+export type ProductKind = 'PIZZA' | 'PREPARED' | 'INDUSTRIALIZED' | 'COMBO';
+export type ComboPriceType = 'FIXED' | 'SUM_ITEMS';
+export type DietaryRestriction = 'VEGETARIAN' | 'VEGAN' | 'ORGANIC' | 'LACTOSE_FREE' | 'GLUTEN_FREE' | 'SUGAR_FREE';
+export type BeverageCharacteristic = 'COLD' | 'ALCOHOLIC' | 'NATURAL';
+
+export interface ComboSelection { groupId: string; itemId: string; }
+export interface ComboGroupItem {
+  id: string; product_id: string; name: string; description?: string | null; image_url?: string | null;
+  price: number | string; promo_active?: boolean; promo_price?: number | string | null;
+  current_price?: number | string; additional_price?: number | string; active?: boolean; stock?: number | null;
+  track_stock?: boolean; dietary_restrictions?: DietaryRestriction[]; beverage_characteristics?: BeverageCharacteristic[];
+  serves_up_to?: number | null;
+}
+export interface ComboGroup {
+  id: string; combo_product_id?: string; name: string; description?: string | null; required: boolean;
+  min_selections: number; max_selections: number; sort_order?: number; active: boolean; items: ComboGroupItem[];
+}
+
 export interface Product {
   id: string;
   name: string;
   description?: string | null;
   image_url?: string | null;
   price: number;
+  promo_active?: boolean;
+  promo_price?: number | string | null;
   stock: number;
   track_stock?: boolean;
   version: number;
@@ -144,6 +166,13 @@ export interface Product {
   uncategorized_additions_min_selections?: number;
   uncategorized_additions_max_selections?: number;
   uncategorized_additions_required?: boolean;
+  product_kind?: ProductKind;
+  product_type?: 'NORMAL' | 'COMPOSTO';
+  combo_price_type?: ComboPriceType;
+  combo_groups?: ComboGroup[];
+  dietary_restrictions?: DietaryRestriction[];
+  beverage_characteristics?: BeverageCharacteristic[];
+  serves_up_to?: number | null;
 }
 
 export interface CartItem {
@@ -152,6 +181,8 @@ export interface CartItem {
   selectedAdditions: SelectedAddition[];
   /** Observação do cliente para o item (ex.: remover cebola). */
   notes?: string | null;
+  comboSelections?: ComboSelection[];
+  combo_selections?: ComboSelection[];
 }
 
 export interface StoreCartCoupon {
@@ -180,6 +211,7 @@ export interface OrderItem {
   product_version: number;
   additions?: ProductAddition[];
   notes?: string | null;
+  combo_selections?: ComboSelection[];
 }
 
 export interface Order {

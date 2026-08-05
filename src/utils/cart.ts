@@ -1,6 +1,8 @@
 import { CartItem, Product, SelectedAddition } from '../types';
+import { comboUnitPrice } from './combo';
 
 export function calcProductUnitTotal(product: Product, selectedAdditions: SelectedAddition[] = []): number {
+  if (product.product_kind === 'COMBO') return comboUnitPrice(product, []);
   const additionsTotal = selectedAdditions.reduce((sum, sel) => {
     const add = (product.additions || []).find((a) => a.id === sel.id);
     return sum + (add ? Number(add.price) * sel.quantity : 0);
@@ -9,7 +11,10 @@ export function calcProductUnitTotal(product: Product, selectedAdditions: Select
 }
 
 export function calcItemTotal(item: CartItem): number {
-  return calcProductUnitTotal(item.product, item.selectedAdditions) * item.quantity;
+  const unitTotal = item.product.product_kind === 'COMBO'
+    ? comboUnitPrice(item.product, item.comboSelections ?? item.combo_selections ?? [])
+    : calcProductUnitTotal(item.product, item.selectedAdditions);
+  return unitTotal * item.quantity;
 }
 
 export function calcCartTotal(items: CartItem[]): number {

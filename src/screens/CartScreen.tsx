@@ -131,6 +131,14 @@ export function CartScreen({ navigation }: Props) {
                   {formatAdditionSummary(item)}
                 </Text>
               )}
+              {(item.comboSelections ?? item.combo_selections ?? []).length > 0 && (
+                <Text style={styles.itemAdditions} numberOfLines={2}>
+                  {(item.comboSelections ?? item.combo_selections ?? []).map((selection) => {
+                    const group = item.product.combo_groups?.find((entry) => entry.id === selection.groupId);
+                    return group?.items.find((entry) => entry.id === selection.itemId)?.name;
+                  }).filter(Boolean).join(', ')}
+                </Text>
+              )}
               {item.notes?.trim() ? (
                 <Text style={styles.itemNotes} numberOfLines={2}>
                   Obs: {item.notes.trim()}

@@ -350,6 +350,7 @@ export function CheckoutScreen({ navigation }: CheckoutProps) {
           additions: (i.selectedAdditions ?? [])
             .filter((a) => a?.id && Number(a.quantity) > 0)
             .map((a) => ({ id: String(a.id), quantity: Number(a.quantity) })),
+          comboSelections: i.comboSelections ?? i.combo_selections ?? [],
           notes: i.notes?.trim() || null,
         })),
         customerName: name.trim(),

@@ -24,8 +24,7 @@
     "build:apk:local": "powershell -ExecutionPolicy Bypass -File ./scripts/build-apk-release.ps1",
     "build:aab": "powershell -ExecutionPolicy Bypass -File ./scripts/build-aab-release.ps1",
     "build:apk:eas": "eas build --platform android --profile production-apk",
-    "test": "jest",
-    "eas-build-post-install": "ls -la node_modules/react-native/sdks/ 2>&1; ls -la node_modules/react-native/sdks/hermesc/ 2>&1; find node_modules/react-native/sdks -iname 'hermesc*' -exec ls -la {} \\; 2>&1; chmod +x node_modules/react-native/sdks/hermesc/*/hermesc node_modules/react-native/sdks/*/hermesc 2>/dev/null || true"
+    "test": "jest"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.7",

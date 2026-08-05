@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { CartItem, Product, SelectedAddition } from '../types';
+import { CartItem, ComboSelection, Product, SelectedAddition } from '../types';
 import { calcItemTotal } from '../utils/cart';
 import { useStore } from './StoreContext';
 import { useAuth } from './AuthContext';
@@ -21,6 +21,7 @@ interface CartContextValue {
     quantity?: number,
     selectedAdditions?: SelectedAddition[],
     notes?: string | null,
+    comboSelections?: ComboSelection[],
   ) => Promise<AddItemResult>;
   removeItem: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number) => Promise<void>;
@@ -98,6 +99,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     quantity = 1,
     selectedAdditions: SelectedAddition[] = [],
     notes: string | null = null,
+    comboSelections: ComboSelection[] = [],
   ): Promise<AddItemResult> => {
     if (!isAuthenticated) {
       return { ok: false, reason: 'auth_required' };
@@ -111,6 +113,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId: product.id,
         quantity,
         additions: selectedAdditions,
+        comboSelections,
         notes: notes?.trim() || null,
         mode: 'add',
       });
@@ -156,6 +159,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         productId,
         quantity,
         additions: item?.selectedAdditions ?? [],
+        comboSelections: item?.comboSelections ?? item?.combo_selections ?? [],
         notes: item?.notes ?? null,
         mode: 'set',
       });

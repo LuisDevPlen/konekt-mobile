@@ -13,7 +13,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { HomeStackParamList, MainTabParamList, Product, ProductAddition } from '../types';
+import { ComboSelection, HomeStackParamList, MainTabParamList, Product, ProductAddition } from '../types';
 import { Loading, ErrorBox } from '../components/ui';
 import { SacolaHeader, StickyFooter } from '../components/layout';
 import { QuantityStepper } from '../components/QuantityStepper';
@@ -26,6 +26,7 @@ import { AppApiError } from '../utils/errors';
 import { resolveImageUrl } from '../utils/imageUrl';
 import { isProductAvailable, maxProductQuantity, stockLabel } from '../utils/productStock';
 import { calcProductUnitTotal } from '../utils/cart';
+import { comboStartingPrice, comboUnitPrice, validateComboSelections } from '../utils/combo';
 import {
   additionQty,
   canIncreaseAddition,
@@ -54,6 +55,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const [product, setProduct] = React.useState<Product | null>(null);
   const [productQty, setProductQty] = React.useState(1);
   const [selectedAdditionQty, setSelectedAdditionQty] = React.useState<Map<string, number>>(new Map());
+  const [comboSelections, setComboSelections] = React.useState<ComboSelection[]>([]);
   const [itemNotes, setItemNotes] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [adding, setAdding] = React.useState(false);
@@ -66,6 +68,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     setAdditionError('');
     setProductQty(1);
     setSelectedAdditionQty(new Map());
+    setComboSelections([]);
     setItemNotes('');
     try {
       const p = normalizeProductAdditions(await storeApi.getProduct(store.slug, route.params.productId));
@@ -101,6 +104,8 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       setAdditionError(validationError);
       return;
     }
+    const comboError = validateComboSelections(product, comboSelections);
+    if (comboError) { setAdditionError(comboError); return; }
 
     if (!isAuthenticated) {
       goToLogin(navigation, { coverUrl });
@@ -115,6 +120,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       qty,
       selectedAdditionsPayload(selectedAdditionQty),
       itemNotes.trim() || null,
+      comboSelections,
     );
     setAdding(false);
 
@@ -157,14 +163,17 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   }
 
   const groups = productAdditionGroups(product);
-  const unitTotal = calcProductUnitTotal(product, selectedAdditionsPayload(selectedAdditionQty));
+  const isCombo = product.product_kind === 'COMBO';
+  const unitTotal = isCombo ? comboUnitPrice(product, comboSelections) : calcProductUnitTotal(product, selectedAdditionsPayload(selectedAdditionQty));
   const maxQty = maxProductQuantity(product);
   const safeQty = Math.min(Math.max(1, productQty), Math.max(1, maxQty));
   const lineTotal = unitTotal * safeQty;
   const available = isProductAvailable(product);
   const additionValidationError = validateAdditionSelections(product, selectedAdditionQty);
-  const canAddToCart = available && (!isAuthenticated || !additionValidationError);
-  const footerValidationMessage = isAuthenticated ? (additionError || additionValidationError) : null;
+  const comboValidationError = validateComboSelections(product, comboSelections);
+  const validationMessage = additionValidationError || comboValidationError;
+  const canAddToCart = available && (!isAuthenticated || !validationMessage);
+  const footerValidationMessage = isAuthenticated ? (additionError || validationMessage) : null;
 
   return (
     <View style={styles.container}>
@@ -194,11 +203,37 @@ export function ProductDetailScreen({ navigation, route }: Props) {
           {product.description ? (
             <Text style={styles.description}>{product.description}</Text>
           ) : null}
-          <Text style={styles.price}>{formatCurrency(Number(product.price))}</Text>
+          <Text style={styles.price}>{isCombo && product.combo_price_type === 'SUM_ITEMS' ? `A partir de ${formatCurrency(comboStartingPrice(product))}` : formatCurrency(Number(product.price))}</Text>
           <Text style={[styles.stock, !available && styles.stockOut]}>
             {stockLabel(product)}
           </Text>
         </View>
+
+        {(product.dietary_restrictions?.length || product.beverage_characteristics?.length || product.serves_up_to) ? (
+          <View style={styles.highlightCard}>
+            {[...(product.dietary_restrictions ?? []), ...(product.beverage_characteristics ?? [])].map((tag) => <View key={tag} style={styles.highlight}><Text style={styles.highlightText}>{tag.replaceAll('_', ' ')}</Text></View>)}
+            {product.serves_up_to ? <View style={styles.highlight}><Text style={styles.highlightText}>Serve at\u00e9 {product.serves_up_to} pessoa(s)</Text></View> : null}
+          </View>
+        ) : null}
+
+        {isCombo ? (product.combo_groups ?? []).filter((group) => group.active).map((group) => {
+          const chosen = comboSelections.filter((selection) => selection.groupId === group.id);
+          return <View key={group.id} style={styles.comboCard}>
+            <Text style={styles.groupTitle}>{group.name}</Text>
+            <Text style={styles.groupHint}>{group.required ? 'Obrigat\u00f3rio' : 'Opcional'} \u00b7 escolha de {Math.max(group.required ? 1 : 0, group.min_selections)} a {group.max_selections}</Text>
+            {group.items.filter((item) => item.active !== false && (!item.track_stock || Number(item.stock ?? 0) > 0)).map((item) => {
+              const selected = chosen.some((selection) => selection.itemId === item.id);
+              return <TouchableOpacity key={item.id} style={[styles.comboItem, selected && styles.comboItemSelected]} onPress={() => setComboSelections((current) => {
+                if (selected) return current.filter((selection) => !(selection.groupId === group.id && selection.itemId === item.id));
+                if (chosen.length >= group.max_selections) return current;
+                return [...current, { groupId: group.id, itemId: item.id }];
+              })}>
+                <View style={styles.additionInfo}><Text style={styles.additionName}>{item.name}</Text>{item.description ? <Text style={styles.additionDesc}>{item.description}</Text> : null}<Text style={styles.additionPrice}>{item.additional_price ? `+ ${formatCurrency(Number(item.additional_price))}` : product.combo_price_type === 'SUM_ITEMS' ? formatCurrency(Number(item.current_price ?? item.price)) : 'Incluso'}</Text></View>
+                <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={22} color={selected ? colors.primary : colors.textMuted} />
+              </TouchableOpacity>;
+            })}
+          </View>;
+        }) : null}
 
         {groups.length > 0 ? (
           <View style={styles.additionsWrap}>
@@ -375,6 +410,12 @@ const styles = StyleSheet.create({
   },
   qtyLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
   additionsWrap: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  highlightCard: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  highlight: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.bgSecondary },
+  highlightText: { fontSize: 11, fontWeight: '700', color: colors.textSecondary, textTransform: 'capitalize' },
+  comboCard: { marginHorizontal: 16, marginTop: 10, padding: 14, borderRadius: radius.lg, backgroundColor: colors.bgSecondary },
+  comboItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border },
+  comboItemSelected: { backgroundColor: colors.bgSection, marginHorizontal: -6, paddingHorizontal: 6, borderRadius: radius.md },
   groupCard: {
     backgroundColor: colors.bgSecondary,
     borderRadius: radius.lg,
