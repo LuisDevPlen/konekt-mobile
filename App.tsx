@@ -15,9 +15,11 @@ import { TermsGate } from './src/components/TermsGate';
 import { SplashOverlay } from './src/components/SplashOverlay';
 import { NotificationPermissionModal } from './src/components/NotificationPermissionModal';
 import { colors } from './src/theme/ifood';
+import { initSentry, Sentry } from './src/utils/sentry';
 
 WebBrowser.maybeCompleteAuthSession();
 SplashScreen.preventAutoHideAsync().catch(() => {});
+initSentry();
 
 const navTheme = {
   ...DefaultTheme,
@@ -31,7 +33,7 @@ const navTheme = {
   },
 };
 
-export default function App() {
+function App() {
   const [splashVisible, setSplashVisible] = React.useState(true);
 
   React.useEffect(() => {
@@ -62,3 +64,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(App);
